@@ -242,21 +242,18 @@ create_epp_configmap epp-config-d "${DECODE_EPP_CONFIG}"
 # Render the epp-role kustomize template once per role (prefill, decode) with
 # role-specific EPP_NAME / POOL_NAME / EPP_CONFIG_MAP, then apply.
 render_epp_role() {
-    local epp_name="$1" pool_name="$2" configmap="$3"
+    local epp_name="$1" pool_name="$2" configmap="$3" role_path="$4"
     # export so envsubst (a separate process downstream in the pipe) sees them
-    export EPP_NAME="${epp_name}" POOL_NAME="${pool_name}" EPP_CONFIG_MAP="${configmap}"
+    export EPP_NAME="${epp_name}" POOL_NAME="${pool_name}" EPP_CONFIG_MAP="${configmap}" ROLE_PATH="${role_path}"
     kubectl kustomize deploy/components/inference-gateway/epp-role \
-        | envsubst '${EPP_NAME} ${POOL_NAME} ${EPP_CONFIG_MAP} ${EPP_IMAGE} ${UDS_TOKENIZER_IMAGE} ${NAMESPACE} ${METRICS_ENDPOINT_AUTH} ${TARGET_PORTS}' \
+        | envsubst '${EPP_NAME} ${POOL_NAME} ${EPP_CONFIG_MAP} ${ROLE_PATH} ${EPP_IMAGE} ${UDS_TOKENIZER_IMAGE} ${NAMESPACE} ${METRICS_ENDPOINT_AUTH} ${TARGET_PORTS}' \
         | kubectl --context ${KUBE_CONTEXT} apply -f -
 }
-render_epp_role "${EPP_NAME_P}" "${PREFILL_POOL_NAME}" epp-config-p
-render_epp_role "${EPP_NAME_D}" "${DECODE_POOL_NAME}" epp-config-d
+render_epp_role "${EPP_NAME_P}" "${PREFILL_POOL_NAME}" epp-config-p /prefill
+render_epp_role "${EPP_NAME_D}" "${DECODE_POOL_NAME}" epp-config-d /decode
 
-# Deploy Istio base + Gateway + dual HTTPRoutes (role-independent).
+# Deploy Istio base + Gateway (role-independent; no envsubst needed).
 kubectl kustomize --enable-helm deploy/environments/dev/base-kind-istio \
-  | envsubst '${PREFILL_POOL_NAME} ${DECODE_POOL_NAME} ${MODEL_NAME} ${MODEL_NAME_SAFE} \
-  ${EPP_IMAGE} ${VLLM_IMAGE} ${SIDECAR_IMAGE} ${UDS_TOKENIZER_IMAGE} \
-  ${TARGET_PORTS} ${NAMESPACE}' \
   | kubectl --context ${KUBE_CONTEXT} apply -f -
 
 # Deploy P/D vLLM components (prefill + decode pods + simulator overlay)

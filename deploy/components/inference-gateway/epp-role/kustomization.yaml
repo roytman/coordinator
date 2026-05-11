@@ -12,6 +12,7 @@ resources:
 - service-account.yaml
 - rbac.yaml
 - inference-pool.yaml
+- httproute.yaml
 - service.yaml
 - deployment.yaml
 - destination-rule.yaml

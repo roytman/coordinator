@@ -1,14 +1,13 @@
 # ------------------------------------------------------------------------------
 # Inference Gateway
 #
-# Role-independent resources for the P/D coordinator: the Gateway itself and
-# the two HTTPRoutes (path-prefix routing for /prefill and /decode). Per-EPP
-# resources (Deployment, Service, ServiceAccount, RBAC, InferencePool,
-# DestinationRule) are rendered twice from ./epp-role by scripts/kind-dev-env.sh.
+# Role-independent resources for the coordinator: the Gateway itself.
+# Per-role resources (HTTPRoute, InferencePool, Deployment, Service,
+# ServiceAccount, RBAC, DestinationRule) are rendered from ./epp-role by
+# scripts/kind-dev-env.sh once per role (prefill, decode, …).
 # ------------------------------------------------------------------------------
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 
 resources:
 - gateways.yaml
-- httproutes.yaml
