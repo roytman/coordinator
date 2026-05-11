@@ -34,24 +34,8 @@ export MODEL_FAMILY="${MODEL_NAME%%/*}"
 export MODEL_ID="${MODEL_NAME##*/}"
 export MODEL_NAME_SAFE=$(echo "${MODEL_ID}" | tr '[:upper:]' '[:lower:]' | tr ' /_.' '-')
 
-# Disaggregation flags (compatible with llm-d-inference-scheduler):
-#   DISAGG_E=true  — deploy a separate Encoder pod   (NOT YET IMPLEMENTED)
-#   DISAGG_P=true  — deploy a separate Prefill pod
-#
-# Only DISAGG_P is currently implemented in this repo. DISAGG_P defaults to
-# true because this deployment is always P/D; setting it to false has no
-# supported scenario. DISAGG_E=true is rejected with an error.
-export DISAGG_E="${DISAGG_E:-false}"
-export DISAGG_P="${DISAGG_P:-true}"
-
-if [ "${DISAGG_E}" == "true" ]; then
-  echo "Error: DISAGG_E=true is not implemented in this repo (P/D only). Use llm-d-inference-scheduler for encode-disaggregation scenarios." >&2
-  exit 1
-fi
-if [ "${DISAGG_P}" != "true" ]; then
-  echo "Error: DISAGG_P=false is not supported — this deployment is always P/D." >&2
-  exit 1
-fi
+# TBD: DISAGG_P=true is currently the only supported value; false is not implemented.
+export DISAGG_P=true
 
 # Dual pool names for P/D disaggregation
 export PREFILL_POOL_NAME="${PREFILL_POOL_NAME:-${MODEL_NAME_SAFE}-prefill-pool}"
@@ -245,31 +229,48 @@ apply_crds "--enable-helm"  deploy/components/crds-istio
 TEMP_FILE=$(mktemp)
 trap "rm -f \"${TEMP_FILE}\"" EXIT
 
-# One configmap per EPP: epp-config-p for prefill, epp-config-d for decode.
-kubectl --context ${KUBE_CONTEXT} delete configmap epp-config-p --ignore-not-found
-envsubst '$MODEL_NAME' < ${PREFILL_EPP_CONFIG} > ${TEMP_FILE}
-kubectl --context ${KUBE_CONTEXT} create configmap epp-config-p --from-file=epp-config.yaml=${TEMP_FILE}
+# Create one configmap per EPP from its source config.
+create_epp_configmap() {
+    local name="$1" src="$2"
+    kubectl --context ${KUBE_CONTEXT} delete configmap "${name}" --ignore-not-found
+    envsubst '$MODEL_NAME' < "${src}" > "${TEMP_FILE}"
+    kubectl --context ${KUBE_CONTEXT} create configmap "${name}" --from-file=epp-config.yaml="${TEMP_FILE}"
+}
+create_epp_configmap epp-config-p "${PREFILL_EPP_CONFIG}"
+create_epp_configmap epp-config-d "${DECODE_EPP_CONFIG}"
 
-kubectl --context ${KUBE_CONTEXT} delete configmap epp-config-d --ignore-not-found
-envsubst '$MODEL_NAME' < ${DECODE_EPP_CONFIG} > ${TEMP_FILE}
-kubectl --context ${KUBE_CONTEXT} create configmap epp-config-d --from-file=epp-config.yaml=${TEMP_FILE}
+# Render the epp-role kustomize template once per role (prefill, decode) with
+# role-specific EPP_NAME / POOL_NAME / EPP_CONFIG_MAP, then apply.
+render_epp_role() {
+    local epp_name="$1" pool_name="$2" configmap="$3"
+    # export so envsubst (a separate process downstream in the pipe) sees them
+    export EPP_NAME="${epp_name}" POOL_NAME="${pool_name}" EPP_CONFIG_MAP="${configmap}"
+    kubectl kustomize deploy/components/inference-gateway/epp-role \
+        | envsubst '${EPP_NAME} ${POOL_NAME} ${EPP_CONFIG_MAP} ${EPP_IMAGE} ${UDS_TOKENIZER_IMAGE} ${NAMESPACE} ${METRICS_ENDPOINT_AUTH} ${TARGET_PORTS}' \
+        | kubectl --context ${KUBE_CONTEXT} apply -f -
+}
+render_epp_role "${EPP_NAME_P}" "${PREFILL_POOL_NAME}" epp-config-p
+render_epp_role "${EPP_NAME_D}" "${DECODE_POOL_NAME}" epp-config-d
 
-# Deploy Istio base + dual InferencePools/HTTPRoutes/Gateway
+# Deploy Istio base + Gateway + dual HTTPRoutes (role-independent).
 kubectl kustomize --enable-helm deploy/environments/dev/base-kind-istio \
   | envsubst '${PREFILL_POOL_NAME} ${DECODE_POOL_NAME} ${MODEL_NAME} ${MODEL_NAME_SAFE} \
-  ${EPP_NAME_P} ${EPP_NAME_D} ${EPP_IMAGE} ${VLLM_IMAGE} \
-  ${SIDECAR_IMAGE} ${UDS_TOKENIZER_IMAGE} ${TARGET_PORTS} ${NAMESPACE} ${METRICS_ENDPOINT_AUTH}' \
+  ${EPP_IMAGE} ${VLLM_IMAGE} ${SIDECAR_IMAGE} ${UDS_TOKENIZER_IMAGE} \
+  ${TARGET_PORTS} ${NAMESPACE}' \
   | kubectl --context ${KUBE_CONTEXT} apply -f -
 
 # Deploy P/D vLLM components (prefill + decode pods + simulator overlay)
 kubectl kustomize --enable-helm deploy/environments/dev/p-d \
   | envsubst '${PREFILL_POOL_NAME} ${DECODE_POOL_NAME} ${MODEL_NAME} ${MODEL_NAME_SAFE} \
-  ${EPP_NAME_P} ${EPP_NAME_D} ${EPP_IMAGE} ${VLLM_IMAGE} \
+  ${EPP_IMAGE} ${VLLM_IMAGE} \
   ${SIDECAR_IMAGE} ${UDS_TOKENIZER_IMAGE} ${TARGET_PORTS} ${NAMESPACE} \
   ${VLLM_REPLICA_COUNT_P} ${VLLM_REPLICA_COUNT_D} ${VLLM_DATA_PARALLEL_SIZE} \
   ${KV_CONNECTOR_TYPE} ${CONNECTOR_TYPE} ${KV_CACHE_ENABLED} ${HF_TOKEN} ${VLLM_SIM_MODE} \
   ${DECODE_ROLE} ${VLLM_EXTRA_ARGS_P} ${VLLM_EXTRA_ARGS_D}' \
   | awk '
+    # Split quoted list items containing multiple --flags into one item per flag.
+    # envsubst can produce "- \"--flag1 --flag2\"" when VLLM_EXTRA_ARGS_* holds
+    # a multi-flag string; vLLM requires each flag as its own list entry.
     /^[[:space:]]*-[[:space:]]+".*"[[:space:]]*$/ {
       match($0, /^[[:space:]]*/); indent = substr($0, 1, RLENGTH)
       content = $0

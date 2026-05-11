@@ -20,8 +20,7 @@ substitution with `envsubst`).
 | `p-d/` | prefill + decode | Separate Prefill and Decode pods, each behind its own `InferencePool` and own EPP. Client hits `/prefill/...` or `/decode/...` on the Gateway NodePort |
 
 Unlike `llm-d-inference-scheduler`, there are no `epd/`, `e-pd/`, or `e-p-d/`
-directories — encode-disaggregation is out of scope here and `DISAGG_E`/`DISAGG_P`
-flags are not honoured.
+directories — encode-disaggregation is out of scope here.
 
 Data parallel (`VLLM_DATA_PARALLEL_SIZE`) is orthogonal and combines with P/D —
 set it to `2`+ to enable multi-rank routing within both pools.
@@ -57,6 +56,7 @@ Variables substituted at deploy time via `envsubst`:
 | `MODEL_NAME` | Model name passed to vLLM | `TinyLlama/TinyLlama-1.1B-Chat-v1.0` |
 | `PREFILL_POOL_NAME` | Prefill InferencePool name + `app:` label on vllm-p pods | `${MODEL_NAME_SAFE}-prefill-pool` |
 | `DECODE_POOL_NAME` | Decode InferencePool name + `app:` label on vllm-d pods | `${MODEL_NAME_SAFE}-decode-pool` |
+| `DISAGG_P` | Deploy a separate Prefill pod; only `true` is supported | `true` |
 | `EPP_NAME_P` | Prefill EPP Deployment/Service/SA name | `${MODEL_NAME_SAFE}-prefill-endpoint-picker` |
 | `EPP_NAME_D` | Decode EPP Deployment/Service/SA name | `${MODEL_NAME_SAFE}-decode-endpoint-picker` |
 | `EPP_IMAGE` | EPP image (the llm-d inference scheduler) | `ghcr.io/llm-d/llm-d-inference-scheduler:dev` |
