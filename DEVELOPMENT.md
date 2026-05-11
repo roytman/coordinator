@@ -4,26 +4,24 @@ Documentation for running the coordinator's P/D dev environment locally on a Kin
 
 ## Table of Contents
 
+- [Overview](#overview)
 - [Requirements](#requirements)
 - [Kind Development Environment](#kind-development-environment)
   - [Accessing the Gateway](#accessing-the-gateway)
   - [Testing the Prefill and Decode Paths](#testing-the-prefill-and-decode-paths)
   - [Cleanup](#cleanup)
-- [Disaggregation Modes](#disaggregation-modes)
 - [Image Tags and Overrides](#image-tags-and-overrides)
+
+## Overview
+
+_TBD_
 
 ## Requirements
 
-- [Make] `v4`+
-- [Docker] (or [Podman])
-- [Kubernetes in Docker (KIND)]
-- [Kubectl] `v1.25`+
-
-[Make]: https://www.gnu.org/software/make/
-[Docker]: https://www.docker.com/
-[Podman]: https://podman.io/
-[Kubernetes in Docker (KIND)]: https://github.com/kubernetes-sigs/kind
-[Kubectl]: https://kubectl.docs.kubernetes.io/installation/kubectl/
+- [Make](https://www.gnu.org/software/make/) `v4`+
+- [Docker](https://www.docker.com/) (or [Podman](https://podman.io/))
+- [Kubernetes in Docker (KIND)](https://github.com/kubernetes-sigs/kind)
+- [Kubectl](https://kubectl.docs.kubernetes.io/installation/kubectl/) `v1.25`+
 
 ## Kind Development Environment
 
@@ -105,19 +103,6 @@ make clean-env-dev-kind
 
 Deletes the Kind cluster entirely.
 
-## Disaggregation Modes
-
-For API compatibility with `llm-d-inference-scheduler`, the script accepts `DISAGG_E`
-and `DISAGG_P` flags, but only one combination is currently supported:
-
-| `DISAGG_E` | `DISAGG_P` | Status |
-|---|---|---|
-| `false` | `true` | ✅ Supported (default) — P/D |
-| `false` | `false` | ❌ Error — always P/D here |
-| `true`  | any    | ❌ Error — encode-disaggregation not implemented in this repo |
-
-Use `llm-d-inference-scheduler` if you need the no-disagg, E/PD, or E/P/D scenarios.
-
 ## Image Tags and Overrides
 
 Image tags and registry live in [versions.mk](versions.mk), which the Makefile includes
@@ -141,6 +126,3 @@ or command-line values:
 EPP_TAG=foo make env-dev-kind
 # or permanently by editing versions.mk
 ```
-
-To run `scripts/kind-dev-env.sh` without `make`, source `versions.mk`'s values into your
-shell first — the script `:?`-errors if any image var is unset.
