@@ -1,4 +1,4 @@
-# Development
+# Kind Development
 
 Documentation for running the coordinator's P/D dev environment locally on a Kind cluster.
 
