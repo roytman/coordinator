@@ -29,8 +29,27 @@ _TBD_
 make env-dev-kind
 ```
 
-Deploys a local Prefill/Decode (P/D) inference stack to the `llm-d-coordinator-dev` Kind cluster. This script bootstraps all prerequisites (Gateway API, GIE, Istio CRDs, and the Istio control plane) in the default namespace. It then provisions two distinct inference pipelines:
+Deploys a local inference stack to the `llm-d-coordinator-dev` Kind cluster. This script bootstraps all prerequisites (Gateway API, GIE, Istio CRDs, and the Istio control plane) in the default namespace.
 
+The disaggregation topology is selected via `DISAGG_TOPOLOGY` (default: `pd`):
+
+| `DISAGG_TOPOLOGY` | Pools deployed | Default model |
+|---|---|---|
+| `pd` (default) | prefill, decode | `TinyLlama/TinyLlama-1.1B-Chat-v1.0` |
+| `epd` | encode, prefill, decode | `Qwen/Qwen3-VL-2B-Instruct` |
+
+**P/D (default)** — two distinct inference pipelines:
+
+- `/prefill/...` → prefill InferencePool → EPP-P → vllm-p pods
+- `/decode/...`  → decode InferencePool  → EPP-D → vllm-d pods
+
+**E/P/D** — three distinct inference pipelines:
+
+```bash
+DISAGG_TOPOLOGY=epd make env-dev-kind
+```
+
+- `/encode/...`  → encode InferencePool  → EPP-E → vllm-e pods
 - `/prefill/...` → prefill InferencePool → EPP-P → vllm-p pods
 - `/decode/...`  → decode InferencePool  → EPP-D → vllm-d pods
 
@@ -65,7 +84,7 @@ kubectl --context kind-llm-d-coordinator-dev \
 
 Then requests go to `http://localhost:8080`.
 
-### Testing the Prefill and Decode Paths
+### Testing the Prefill and Decode Paths (P/D topology)
 
 The Gateway routes by path prefix — each path hits its own pool:
 
@@ -81,8 +100,8 @@ curl -s http://localhost:30080/decode/v1/completions \
   -d '{"model":"TinyLlama/TinyLlama-1.1B-Chat-v1.0","prompt":"hi","max_tokens":5}' | jq
 ```
 
-The URLRewrite filter strips the `/prefill` or `/decode` prefix before forwarding to
-the vLLM pods, so each pool sees the standard `/v1/completions` path.
+The URLRewrite filter strips the path prefix before forwarding to the vLLM pods,
+so each pool sees the standard `/v1/completions` path.
 
 Inspect cluster state:
 
@@ -90,6 +109,37 @@ Inspect cluster state:
 kubectl get inferencepools
 kubectl get pods -l llm-d.ai/component=prefill
 kubectl get pods -l llm-d.ai/component=decode
+kubectl logs -l app=$(echo $MODEL_NAME_SAFE)-prefill-endpoint-picker -c epp
+kubectl logs -l app=$(echo $MODEL_NAME_SAFE)-decode-endpoint-picker  -c epp
+```
+
+### Testing the Encode, Prefill and Decode Paths (E/P/D topology)
+
+```bash
+# Test encode path
+curl -s http://localhost:30080/encode/v1/completions \
+  -H 'Content-Type: application/json' \
+  -d '{"model":"Qwen/Qwen3-VL-2B-Instruct","prompt":"hi","max_tokens":5}' | jq
+
+# Test prefill path
+curl -s http://localhost:30080/prefill/v1/completions \
+  -H 'Content-Type: application/json' \
+  -d '{"model":"Qwen/Qwen3-VL-2B-Instruct","prompt":"hi","max_tokens":5}' | jq
+
+# Test decode path
+curl -s http://localhost:30080/decode/v1/completions \
+  -H 'Content-Type: application/json' \
+  -d '{"model":"Qwen/Qwen3-VL-2B-Instruct","prompt":"hi","max_tokens":5}' | jq
+```
+
+Inspect cluster state:
+
+```bash
+kubectl get inferencepools
+kubectl get pods -l llm-d.ai/component=encode
+kubectl get pods -l llm-d.ai/component=prefill
+kubectl get pods -l llm-d.ai/component=decode
+kubectl logs -l app=$(echo $MODEL_NAME_SAFE)-encode-endpoint-picker  -c epp
 kubectl logs -l app=$(echo $MODEL_NAME_SAFE)-prefill-endpoint-picker -c epp
 kubectl logs -l app=$(echo $MODEL_NAME_SAFE)-decode-endpoint-picker  -c epp
 ```

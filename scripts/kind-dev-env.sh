@@ -29,22 +29,39 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 : "${VLLM_IMAGE:?not set — run via 'make env-dev-kind' or source versions.mk}"
 : "${EPP_IMAGE:?not set — run via 'make env-dev-kind' or source versions.mk}"
 
-export MODEL_NAME="${MODEL_NAME:-TinyLlama/TinyLlama-1.1B-Chat-v1.0}"
+# Disaggregation topology — selects the pool architecture to deploy.
+# Valid values: pd (Prefill/Decode, default), epd (Encode/Prefill/Decode)
+DISAGG_TOPOLOGY="${DISAGG_TOPOLOGY:-pd}"
+case "${DISAGG_TOPOLOGY}" in
+  pd|epd) ;;
+  *) echo "Error: DISAGG_TOPOLOGY='${DISAGG_TOPOLOGY}' is not valid. Use 'pd' or 'epd'." >&2; exit 1 ;;
+esac
+export DISAGG_TOPOLOGY
+
+# Default model: multimodal for EPD (encoder only makes sense with vision/audio models)
+if [ "${DISAGG_TOPOLOGY}" == "epd" ]; then
+  export MODEL_NAME="${MODEL_NAME:-Qwen/Qwen3-VL-2B-Instruct}"
+else
+  export MODEL_NAME="${MODEL_NAME:-TinyLlama/TinyLlama-1.1B-Chat-v1.0}"
+fi
 export MODEL_FAMILY="${MODEL_NAME%%/*}"
 export MODEL_ID="${MODEL_NAME##*/}"
 export MODEL_NAME_SAFE=$(echo "${MODEL_ID}" | tr '[:upper:]' '[:lower:]' | tr ' /_.' '-')
 
-# Dual pool names for P/D disaggregation
+# Pool names (one per role)
+export ENCODE_POOL_NAME="${ENCODE_POOL_NAME:-${MODEL_NAME_SAFE}-encode-pool}"
 export PREFILL_POOL_NAME="${PREFILL_POOL_NAME:-${MODEL_NAME_SAFE}-prefill-pool}"
 export DECODE_POOL_NAME="${DECODE_POOL_NAME:-${MODEL_NAME_SAFE}-decode-pool}"
 
-# Dual EPP names (one per pool)
+# EPP names (one per pool)
+export EPP_NAME_E="${EPP_NAME_E:-${MODEL_NAME_SAFE}-encode-endpoint-picker}"
 export EPP_NAME_P="${EPP_NAME_P:-${MODEL_NAME_SAFE}-prefill-endpoint-picker}"
 export EPP_NAME_D="${EPP_NAME_D:-${MODEL_NAME_SAFE}-decode-endpoint-picker}"
 
 : "${SIDECAR_IMAGE:?not set — run via 'make env-dev-kind' or source versions.mk}"
 : "${UDS_TOKENIZER_IMAGE:?not set — run via 'make env-dev-kind' or source versions.mk}"
 
+export VLLM_REPLICA_COUNT_E="${VLLM_REPLICA_COUNT_E:-1}"
 export VLLM_REPLICA_COUNT_P="${VLLM_REPLICA_COUNT_P:-1}"
 export VLLM_REPLICA_COUNT_D="${VLLM_REPLICA_COUNT_D:-1}"
 export VLLM_DATA_PARALLEL_SIZE="${VLLM_DATA_PARALLEL_SIZE:-1}"
@@ -54,14 +71,17 @@ export NAMESPACE="${NAMESPACE:-default}"
 export METRICS_ENDPOINT_AUTH="${METRICS_ENDPOINT_AUTH:-false}"
 export HF_TOKEN="${HF_TOKEN:-}"
 export KV_CACHE_ENABLED="${KV_CACHE_ENABLED:-false}"
+export VLLM_EXTRA_ARGS_E="${VLLM_EXTRA_ARGS_E:-}"
 export VLLM_EXTRA_ARGS_P="${VLLM_EXTRA_ARGS_P:-}"
 export VLLM_EXTRA_ARGS_D="${VLLM_EXTRA_ARGS_D:-}"
 
-# P/D always uses nixlv2 KV connector
+# KV connector for P disaggregation; EC connector for E disaggregation
 export CONNECTOR_TYPE="${CONNECTOR_TYPE:-nixlv2}"
 export KV_CONNECTOR_TYPE="${KV_CONNECTOR_TYPE:-nixlv2}"
+export EC_CONNECTOR_TYPE="${EC_CONNECTOR_TYPE:-ec-example}"
 
 # Per-pool EPP configs (single-profile each, since each EPP serves one pool)
+export ENCODE_EPP_CONFIG="${ENCODE_EPP_CONFIG:-deploy/config/sim-encode-epp-config.yaml}"
 export PREFILL_EPP_CONFIG="${PREFILL_EPP_CONFIG:-deploy/config/sim-prefill-epp-config.yaml}"
 export DECODE_EPP_CONFIG="${DECODE_EPP_CONFIG:-deploy/config/sim-decode-epp-config.yaml}"
 
@@ -235,8 +255,11 @@ create_epp_configmap() {
 }
 create_epp_configmap epp-config-p "${PREFILL_EPP_CONFIG}"
 create_epp_configmap epp-config-d "${DECODE_EPP_CONFIG}"
+if [ "${DISAGG_TOPOLOGY}" == "epd" ]; then
+  create_epp_configmap epp-config-e "${ENCODE_EPP_CONFIG}"
+fi
 
-# Render the epp-role kustomize template once per role (prefill, decode) with
+# Render the epp-role kustomize template once per role with
 # role-specific EPP_NAME / POOL_NAME / EPP_CONFIG_MAP, then apply.
 render_epp_role() {
     local epp_name="$1" pool_name="$2" configmap="$3" role_path="$4"
@@ -246,6 +269,9 @@ render_epp_role() {
         | envsubst '${EPP_NAME} ${POOL_NAME} ${EPP_CONFIG_MAP} ${ROLE_PATH} ${EPP_IMAGE} ${UDS_TOKENIZER_IMAGE} ${NAMESPACE} ${METRICS_ENDPOINT_AUTH} ${TARGET_PORTS}' \
         | kubectl --context ${KUBE_CONTEXT} apply -f -
 }
+if [ "${DISAGG_TOPOLOGY}" == "epd" ]; then
+  render_epp_role "${EPP_NAME_E}" "${ENCODE_POOL_NAME}" epp-config-e /encode
+fi
 render_epp_role "${EPP_NAME_P}" "${PREFILL_POOL_NAME}" epp-config-p /prefill
 render_epp_role "${EPP_NAME_D}" "${DECODE_POOL_NAME}" epp-config-d /decode
 
@@ -253,14 +279,21 @@ render_epp_role "${EPP_NAME_D}" "${DECODE_POOL_NAME}" epp-config-d /decode
 kubectl kustomize --enable-helm deploy/environments/dev/base-kind-istio \
   | kubectl --context ${KUBE_CONTEXT} apply -f -
 
-# Deploy P/D vLLM components (prefill + decode pods + simulator overlay)
-kubectl kustomize --enable-helm deploy/environments/dev/p-d \
-  | envsubst '${PREFILL_POOL_NAME} ${DECODE_POOL_NAME} ${MODEL_NAME} ${MODEL_NAME_SAFE} \
+# Select kustomize environment dir based on disaggregation topology
+if [ "${DISAGG_TOPOLOGY}" == "epd" ]; then
+  KUSTOMIZE_ENV_DIR="deploy/environments/dev/e-p-d"
+else
+  KUSTOMIZE_ENV_DIR="deploy/environments/dev/p-d"
+fi
+
+# Deploy vLLM components for the selected topology
+kubectl kustomize --enable-helm "${KUSTOMIZE_ENV_DIR}" \
+  | envsubst '${ENCODE_POOL_NAME} ${PREFILL_POOL_NAME} ${DECODE_POOL_NAME} ${MODEL_NAME} ${MODEL_NAME_SAFE} \
   ${EPP_IMAGE} ${VLLM_IMAGE} \
   ${SIDECAR_IMAGE} ${UDS_TOKENIZER_IMAGE} ${TARGET_PORTS} ${NAMESPACE} \
-  ${VLLM_REPLICA_COUNT_P} ${VLLM_REPLICA_COUNT_D} ${VLLM_DATA_PARALLEL_SIZE} \
-  ${KV_CONNECTOR_TYPE} ${CONNECTOR_TYPE} ${KV_CACHE_ENABLED} ${HF_TOKEN} ${VLLM_SIM_MODE} \
-  ${DECODE_ROLE} ${VLLM_EXTRA_ARGS_P} ${VLLM_EXTRA_ARGS_D}' \
+  ${VLLM_REPLICA_COUNT_E} ${VLLM_REPLICA_COUNT_P} ${VLLM_REPLICA_COUNT_D} ${VLLM_DATA_PARALLEL_SIZE} \
+  ${KV_CONNECTOR_TYPE} ${EC_CONNECTOR_TYPE} ${CONNECTOR_TYPE} ${KV_CACHE_ENABLED} ${HF_TOKEN} ${VLLM_SIM_MODE} \
+  ${DECODE_ROLE} ${VLLM_EXTRA_ARGS_E} ${VLLM_EXTRA_ARGS_P} ${VLLM_EXTRA_ARGS_D}' \
   | awk '
     # Split quoted list items containing multiple --flags into one item per flag.
     # envsubst can produce "- \"--flag1 --flag2\"" when VLLM_EXTRA_ARGS_* holds
@@ -293,14 +326,24 @@ kubectl --context ${KUBE_CONTEXT} -n llm-d-istio-system wait --for=condition=ava
 kubectl --context ${KUBE_CONTEXT} -n default wait --for=condition=available --timeout=600s deployment --all
 kubectl --context ${KUBE_CONTEXT} wait gateway/inference-gateway --for=condition=Programmed --timeout=600s
 
+ENCODE_BANNER=""
+if [ "${DISAGG_TOPOLOGY}" == "epd" ]; then
+  ENCODE_BANNER="
+Test encode path:
+  curl -s http://localhost:${KIND_GATEWAY_HOST_PORT}/encode/v1/completions \\
+    -H 'Content-Type: application/json' \\
+    -d '{\"model\":\"${MODEL_NAME}\",\"prompt\":\"hi\",\"max_tokens\":5}' | jq
+"
+fi
+
 cat <<EOF
 -----------------------------------------
-Deployment completed!
+Deployment completed! (topology: ${DISAGG_TOPOLOGY})
 
 * Kind Cluster Name: ${CLUSTER_NAME}
 * Kubectl Context: ${KUBE_CONTEXT}
 * Gateway: http://localhost:${KIND_GATEWAY_HOST_PORT}
-
+${ENCODE_BANNER}
 Test prefill path:
   curl -s http://localhost:${KIND_GATEWAY_HOST_PORT}/prefill/v1/completions \\
     -H 'Content-Type: application/json' \\
