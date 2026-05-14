@@ -407,4 +407,7 @@ When the request contains no `image_url` parts:
 - `render`: always runs - tokenizes the prompt and returns `token_ids` (features will be empty)
 - `encode`: skipped (`MultimodalEntries` is empty)
 - `prefill`: sends request without `features` or `ec_transfer_params`
-- `decode`: sends request without `uuid` fields (only `kv_transfer_params`)
+- `decode`: sends request with `uuid` fields and `image_url: null` (no real media data), plus `kv_transfer_params`
+
+## Questions
+- Should we include ec_transfer_params into Decode request? if we want that Decoder will provide Prefill functionality for small deltas. 
