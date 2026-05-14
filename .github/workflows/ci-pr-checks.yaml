@@ -1,0 +1,101 @@
+name: CI - PR Checks
+
+on:
+  push:
+    branches:
+      - main
+      - 'release-*'
+  pull_request:
+    branches:
+      - main
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  check-changes:
+    runs-on: ubuntu-latest
+    outputs:
+      src: ${{ steps.filter.outputs.src }}
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v6
+      - uses: dorny/paths-filter@v4
+        id: filter
+        with:
+          filters: |
+            src:
+              - '**/*.go'
+              - Dockerfile.*
+              - Makefile*
+              - go.mod
+              - scripts/**
+              - .github/workflows/ci-pr-checks.yaml
+
+  lint-and-test:
+    needs: check-changes
+    if: ${{ needs.check-changes.outputs.src == 'true' }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v6
+
+      - name: Free disk space
+        uses: justinthelaw/maximize-github-runner-space@v0.9.0
+        with:
+          cleanup-profile: custom
+          remove-android: 'true'
+          remove-dotnet: 'true'
+          remove-haskell: 'true'
+          remove-codeql: 'true'
+          remove-cached-tools: 'true'
+          remove-swift: 'true'
+          remove-julia: 'true'
+          remove-rust: 'true'
+          remove-miniconda: 'true'
+          swapfile-size: 0
+
+      - name: Sanity check repo contents
+        run: ls -la
+
+      - name: Set up Go
+        uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Verify go.mod and go.sum are tidy
+        run: go mod tidy -diff
+
+      - name: Create and resolve Go cache volumes
+        id: go-cache
+        run: |
+          docker volume create llm-d-gomodcache
+          docker volume create llm-d-gobuildcache
+          echo "mod=$(docker volume inspect llm-d-gomodcache -f '{{.Mountpoint}}')" >> $GITHUB_OUTPUT
+          echo "build=$(docker volume inspect llm-d-gobuildcache -f '{{.Mountpoint}}')" >> $GITHUB_OUTPUT
+
+      - name: Cache Go modules and build cache
+        uses: actions/cache@v5
+        with:
+          path: |
+            ${{ steps.go-cache.outputs.mod }}
+            ${{ steps.go-cache.outputs.build }}
+          key: go-cache-${{ hashFiles('go.sum') }}
+          restore-keys: |
+            go-cache-
+
+      - name: Run make lint
+        run: make lint
+
+      - name: Run make build
+        shell: bash
+        run: make build
+
+      - name: Run unit tests
+        shell: bash
+        run: make test-unit
+
+      - name: Build container image (no push)
+        run: make image-build
