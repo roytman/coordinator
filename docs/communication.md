@@ -262,10 +262,44 @@ X-Request-ID: <request_id>
 ```
 
 **Notes:**
-- `kwargs_data` carries the same per-image base64 tensors from the render step (same values sent to the encode stage) — the prefill worker needs them to compute mRoPE positional embeddings for the visual tokens
+- `kwargs_data` carries the same per-image base64 tensors from the render step (same values sent to the encode stage). Each blob is a msgpack-serialized `MultiModalKwargsItem` containing both `pixel_values` and `image_grid_thw` (and any other model-specific keys). The prefill worker needs `image_grid_thw` to compute mRoPE (multimodal Rotary Position Embedding) positional encodings for the visual tokens. The embeddings themselves encode what each patch contains; `image_grid_thw` tells the model where each patch sits spatially (temporal, height, width grid dimensions).
 - `ec_transfer_params` is structured as per-modality: `{"image": [params_0, params_1, ...]}`
 - `kv_transfer_params.do_remote_decode = true` tells the prefill worker to store KV cache for remote decode
 - `mm_placeholders` use the original offsets from the render response (positions in the full token sequence)
+
+### Optimization: avoid sending pixel data to prefill
+
+Currently the full `kwargs_data` blobs (containing both `pixel_values` and `image_grid_thw`) are forwarded to the prefill worker. The prefill worker only needs `image_grid_thw` for mRoPE -- the `pixel_values` are redundant since the encoder already consumed them. For large images, the pixel tensors dominate the payload size, so stripping them would significantly reduce the data sent to prefill.
+
+**Required changes:**
+
+1. **vLLM render endpoint** (`vllm/entrypoints/openai/render/serving.py`): return `image_grid_thw` as a separate top-level field in the render response, alongside `kwargs_data`. The render step already computes it during image preprocessing (`get_image_grid_thw()` in the vision processor). Example response:
+   ```json
+   {
+     "token_ids": [1, 32000, 32000, 32000, ...],
+     "features": {
+       "mm_hashes": {"image": ["abc123hash", "def456hash"]},
+       "mm_placeholders": {"image": [{"offset": 1, "length": 3}, {"offset": 4, "length": 3}]},
+       "kwargs_data": {"image": ["<full-msgpack-blob-1>", "<full-msgpack-blob-2>"]},
+       "image_grid_thw": {"image": [[1, 24, 24], [1, 16, 16]]}
+     }
+   }
+   ```
+
+2. **vLLM prefill worker**: accept `image_grid_thw` directly in the features dict (as plain JSON arrays) instead of extracting it from the msgpack `kwargs_data` blob.
+
+3. **Coordinator render step** (`pkg/steps/render.go`): parse `image_grid_thw` from the render response and store it per `MultimodalEntry`.
+
+4. **Coordinator prefill step** (`pkg/steps/prefill.go`): send `image_grid_thw` instead of `kwargs_data` in the prefill request features:
+   ```json
+   "features": {
+     "mm_hashes": {"image": ["abc123hash", "def456hash"]},
+     "mm_placeholders": {"image": [{"offset": 1, "length": 3}, {"offset": 4, "length": 3}]},
+     "image_grid_thw": {"image": [[1, 24, 24], [1, 16, 16]]}
+   }
+   ```
+
+5. **Coordinator encode step** (`pkg/steps/encode.go`): no change -- encode continues to send the full `kwargs_data` (pixel values needed for ViT).
 
 ### Response
 
