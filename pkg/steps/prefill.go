@@ -25,9 +25,9 @@ func init() {
 
 type PrefillStep struct {
 	useOpenAIFormat bool
-	gwClient       *gateway.Client
-	kv             kv.Connector
-	ec             ec.Connector
+	gwClient        *gateway.Client
+	kv              kv.Connector
+	ec              ec.Connector
 }
 
 func NewPrefillStep(params map[string]any) (pipeline.Step, error) {
@@ -91,7 +91,7 @@ func (s *PrefillStep) Execute(ctx context.Context, reqCtx *pipeline.RequestConte
 
 	resp, err := s.gwClient.Post(ctx, path, bodyBytes, map[string]string{
 		reqcommon.RequestIDHeaderKey: reqCtx.RequestID,
-		gateway.EPPPhaseHeader:      gateway.PhasePrefill,
+		gateway.EPPPhaseHeader:       gateway.PhasePrefill,
 	})
 	if err != nil {
 		return fmt.Errorf("prefill: request: %w", err)

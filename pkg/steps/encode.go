@@ -25,9 +25,9 @@ func init() {
 
 type EncodeStep struct {
 	useOpenAIFormat bool
-	maxParallel    int
-	gwClient       *gateway.Client
-	ec             ec.Connector
+	maxParallel     int
+	gwClient        *gateway.Client
+	ec              ec.Connector
 }
 
 func NewEncodeStep(params map[string]any) (pipeline.Step, error) {
@@ -49,8 +49,8 @@ func NewEncodeStep(params map[string]any) (pipeline.Step, error) {
 	}
 	return &EncodeStep{
 		useOpenAIFormat: useOpenAI,
-		maxParallel:    maxParallel,
-		ec:             ecConn,
+		maxParallel:     maxParallel,
+		ec:              ecConn,
 	}, nil
 }
 
@@ -89,7 +89,7 @@ func (s *EncodeStep) Execute(ctx context.Context, reqCtx *pipeline.RequestContex
 
 			resp, err := s.gwClient.Post(gCtx, path, bodyBytes, map[string]string{
 				reqcommon.RequestIDHeaderKey: reqCtx.RequestID,
-				gateway.EPPPhaseHeader:      gateway.PhaseEncode,
+				gateway.EPPPhaseHeader:       gateway.PhaseEncode,
 			})
 			if err != nil {
 				return fmt.Errorf("encode[%d]: request: %w", i, err)

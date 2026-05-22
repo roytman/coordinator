@@ -17,7 +17,7 @@ import (
 
 func TestDecodeStep_NonStreaming(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Path != "/v1/chat/completions" {
+		if r.URL.Path != testChatCompletionsPath {
 			t.Fatalf("unexpected path: %s", r.URL.Path)
 		}
 		if r.Header.Get(gateway.EPPPhaseHeader) != gateway.PhaseDecode {
@@ -96,7 +96,7 @@ func TestDecodeStep_NonStreaming(t *testing.T) {
 	recorder := httptest.NewRecorder()
 	reqCtx := &pipeline.RequestContext{
 		RequestID:    "req-1",
-		OriginalPath: "/v1/chat/completions",
+		OriginalPath: testChatCompletionsPath,
 		Model:        "llama-3",
 		Stream:       false,
 		TokenIDs:     []int{1, 32000, 32000, 32000, 2345},
@@ -173,7 +173,7 @@ func TestDecodeStep_Streaming(t *testing.T) {
 	recorder := httptest.NewRecorder()
 	reqCtx := &pipeline.RequestContext{
 		RequestID:    "req-1",
-		OriginalPath: "/v1/chat/completions",
+		OriginalPath: testChatCompletionsPath,
 		Model:        "test",
 		Stream:       true,
 		MultimodalEntries: []pipeline.MultimodalEntry{
@@ -220,7 +220,7 @@ func TestDecodeStep_GatewayError(t *testing.T) {
 	recorder := httptest.NewRecorder()
 	reqCtx := &pipeline.RequestContext{
 		RequestID:    "req-1",
-		OriginalPath: "/v1/chat/completions",
+		OriginalPath: testChatCompletionsPath,
 		Model:        "test",
 		Stream:       false,
 		MultimodalEntries: []pipeline.MultimodalEntry{

@@ -29,7 +29,7 @@ func init() {
 
 type ConditionalDecodeStep struct {
 	useOpenAIFormat bool
-	gwClient       *gateway.Client
+	gwClient        *gateway.Client
 }
 
 func NewConditionalDecodeStep(params map[string]any) (pipeline.Step, error) {

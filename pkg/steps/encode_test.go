@@ -217,7 +217,7 @@ func TestEncodeStep_ChatCompletionsFormat(t *testing.T) {
 					"role": "user",
 					"content": []any{
 						map[string]any{"type": "text", "text": "describe"},
-						map[string]any{"type": "image_url", "image_url": map[string]any{"url": "data:image/jpeg;base64,abc"}},
+						map[string]any{"type": imageURLPartType, imageURLPartType: map[string]any{"url": "data:image/jpeg;base64,abc"}},
 					},
 				},
 			},
@@ -248,8 +248,8 @@ func TestEncodeStep_ChatCompletionsFormat(t *testing.T) {
 		t.Fatalf("expected 1 content part (image only), got %d", len(content))
 	}
 	part := content[0].(map[string]any)
-	if part["type"] != "image_url" {
-		t.Fatalf("expected image_url content part, got %v", part["type"])
+	if part["type"] != imageURLPartType {
+		t.Fatalf("expected %s content part, got %v", imageURLPartType, part["type"])
 	}
 
 	// Verify tokens nested field

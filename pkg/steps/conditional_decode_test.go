@@ -16,6 +16,11 @@ import (
 	"github.com/llm-d/coordinator/pkg/pipeline"
 )
 
+const (
+	testChatCompletionsPath = "/v1/chat/completions"
+	testModelName           = "test-model"
+)
+
 func TestConditionalDecodeStep_CacheHit(t *testing.T) {
 	var receivedPath string
 	var receivedBody map[string]any
@@ -48,8 +53,8 @@ func TestConditionalDecodeStep_CacheHit(t *testing.T) {
 	recorder := httptest.NewRecorder()
 	reqCtx := &pipeline.RequestContext{
 		RequestID:      "req-1",
-		OriginalPath:   "/v1/chat/completions",
-		Body:           map[string]any{"model": "test-model", "stream": false, "messages": []any{}},
+		OriginalPath:   testChatCompletionsPath,
+		Body:           map[string]any{"model": testModelName, "stream": false, "messages": []any{}},
 		TokenIDs:       []int{1, 2345, 6789},
 		ResponseWriter: recorder,
 		Flusher:        recorder,
@@ -60,14 +65,14 @@ func TestConditionalDecodeStep_CacheHit(t *testing.T) {
 		t.Fatalf("expected ErrPipelineDone, got %v", err)
 	}
 
-	if receivedPath != "/v1/chat/completions" {
-		t.Fatalf("expected path /v1/chat/completions, got %s", receivedPath)
+	if receivedPath != testChatCompletionsPath {
+		t.Fatalf("expected path %s, got %s", testChatCompletionsPath, receivedPath)
 	}
 	if receivedPhaseHeader != gateway.PhaseDecode {
 		t.Fatalf("expected EPP-Phase: %s, got %q", gateway.PhaseDecode, receivedPhaseHeader)
 	}
-	if receivedBody["model"] != "test-model" {
-		t.Fatalf("expected model test-model in request body, got %v", receivedBody["model"])
+	if receivedBody["model"] != testModelName {
+		t.Fatalf("expected model %s in request body, got %v", testModelName, receivedBody["model"])
 	}
 	if receivedPreferHeader != "if-available" {
 		t.Fatalf("expected Prefer: if-available header, got %q", receivedPreferHeader)
@@ -119,7 +124,7 @@ func TestConditionalDecodeStep_CacheHit_Streaming(t *testing.T) {
 	recorder := httptest.NewRecorder()
 	reqCtx := &pipeline.RequestContext{
 		RequestID:      "req-1",
-		OriginalPath:   "/v1/chat/completions",
+		OriginalPath:   testChatCompletionsPath,
 		Body:           map[string]any{"model": "test", "stream": true},
 		ResponseWriter: recorder,
 		Flusher:        recorder,
@@ -159,7 +164,7 @@ func TestConditionalDecodeStep_CacheMiss_412(t *testing.T) {
 	recorder := httptest.NewRecorder()
 	reqCtx := &pipeline.RequestContext{
 		RequestID:      "req-1",
-		OriginalPath:   "/v1/chat/completions",
+		OriginalPath:   testChatCompletionsPath,
 		Body:           map[string]any{"model": "test"},
 		ResponseWriter: recorder,
 		Flusher:        recorder,
@@ -194,7 +199,7 @@ func TestConditionalDecodeStep_ServerError(t *testing.T) {
 	recorder := httptest.NewRecorder()
 	reqCtx := &pipeline.RequestContext{
 		RequestID:      "req-1",
-		OriginalPath:   "/v1/chat/completions",
+		OriginalPath:   testChatCompletionsPath,
 		Body:           map[string]any{"model": "test"},
 		ResponseWriter: recorder,
 		Flusher:        recorder,

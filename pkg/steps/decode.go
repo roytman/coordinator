@@ -27,8 +27,8 @@ func init() {
 
 type DecodeStep struct {
 	useOpenAIFormat bool
-	gwClient       *gateway.Client
-	kv             kv.Connector
+	gwClient        *gateway.Client
+	kv              kv.Connector
 }
 
 func NewDecodeStep(params map[string]any) (pipeline.Step, error) {
