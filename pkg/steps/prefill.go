@@ -55,7 +55,7 @@ func (s *PrefillStep) SetGatewayClient(c *gateway.Client) {
 func (s *PrefillStep) Name() string { return PrefillStepName }
 
 func (s *PrefillStep) Execute(ctx context.Context, reqCtx *pipeline.RequestContext) error {
-	logger := log.FromContext(ctx).WithName("prefill")
+	logger := log.FromContext(ctx).WithName(PrefillStepName)
 
 	allHashes := make([]string, len(reqCtx.MultimodalEntries))
 	allPlaceholders := make([]any, len(reqCtx.MultimodalEntries))

@@ -57,7 +57,7 @@ func NewReplaceMediaURLsStep(params map[string]any) (pipeline.Step, error) {
 func (s *ReplaceMediaURLsStep) Name() string { return ReplaceMediaURLsStepName }
 
 func (s *ReplaceMediaURLsStep) Execute(ctx context.Context, reqCtx *pipeline.RequestContext) error {
-	logger := log.FromContext(ctx).WithName("replace-media-urls")
+	logger := log.FromContext(ctx).WithName(ReplaceMediaURLsStepName)
 
 	messages, ok := reqCtx.Body["messages"].([]any)
 	if !ok {

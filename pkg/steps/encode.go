@@ -65,7 +65,7 @@ func (s *EncodeStep) Execute(ctx context.Context, reqCtx *pipeline.RequestContex
 		return nil
 	}
 
-	logger := log.FromContext(ctx).WithName("encode")
+	logger := log.FromContext(ctx).WithName(EncodeStepName)
 
 	g, gCtx := errgroup.WithContext(ctx)
 	g.SetLimit(s.maxParallel)

@@ -49,7 +49,7 @@ func (s *ConditionalDecodeStep) SetGatewayClient(c *gateway.Client) {
 func (s *ConditionalDecodeStep) Name() string { return ConditionalDecodeStepName }
 
 func (s *ConditionalDecodeStep) Execute(ctx context.Context, reqCtx *pipeline.RequestContext) error {
-	logger := log.FromContext(ctx).WithName("conditional-decode")
+	logger := log.FromContext(ctx).WithName(ConditionalDecodeStepName)
 
 	body := copyBody(reqCtx.Body)
 	s.prepareBody(reqCtx, body)

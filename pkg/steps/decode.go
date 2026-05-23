@@ -51,7 +51,7 @@ func (s *DecodeStep) SetGatewayClient(c *gateway.Client) {
 func (s *DecodeStep) Name() string { return DecodeStepName }
 
 func (s *DecodeStep) Execute(ctx context.Context, reqCtx *pipeline.RequestContext) error {
-	logger := log.FromContext(ctx).WithName("decode")
+	logger := log.FromContext(ctx).WithName(DecodeStepName)
 
 	s.prepareDecodeBody(reqCtx)
 

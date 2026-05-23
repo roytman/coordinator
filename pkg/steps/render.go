@@ -63,7 +63,7 @@ func (s *RenderStep) Execute(ctx context.Context, reqCtx *pipeline.RequestContex
 }
 
 func (s *RenderStep) executeCompletions(ctx context.Context, reqCtx *pipeline.RequestContext) error {
-	logger := log.FromContext(ctx).WithName("render")
+	logger := log.FromContext(ctx).WithName(RenderStepName)
 
 	prompt := reqCtx.Body["prompt"]
 
@@ -133,7 +133,7 @@ func (s *RenderStep) executeCompletions(ctx context.Context, reqCtx *pipeline.Re
 }
 
 func (s *RenderStep) executeChatCompletions(ctx context.Context, reqCtx *pipeline.RequestContext) error {
-	logger := log.FromContext(ctx).WithName("render")
+	logger := log.FromContext(ctx).WithName(RenderStepName)
 
 	body, err := json.Marshal(reqCtx.Body)
 	if err != nil {
