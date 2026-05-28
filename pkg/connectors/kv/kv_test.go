@@ -42,9 +42,9 @@ func TestSGLangKV_Params(t *testing.T) {
 
 	// Decode: forwards prefill-response kv_transfer_params plus remote flags.
 	wantDecode := map[string]any{
-		fieldBootstrapHost: "10.0.0.42",
-		fieldBootstrapPort: 8998,
-		fieldBootstrapRoom: int64(12345),
+		fieldBootstrapHost:  "10.0.0.42",
+		fieldBootstrapPort:  8998,
+		fieldBootstrapRoom:  int64(12345),
 		"do_remote_decode":  false,
 		"do_remote_prefill": true,
 	}

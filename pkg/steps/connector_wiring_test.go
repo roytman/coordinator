@@ -118,10 +118,10 @@ func TestDecodeStep_ConnectorShapesDecodeBody(t *testing.T) {
 	}
 
 	cases := []struct {
-		connector        string
-		prefillResponse  map[string]any
-		wantFields       map[string]any
-		denyFields       []string
+		connector       string
+		prefillResponse map[string]any
+		wantFields      map[string]any
+		denyFields      []string
 	}{
 		{
 			connector:       kv.NIXLv2,
