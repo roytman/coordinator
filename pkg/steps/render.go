@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"math"
 	"net/http"
 	"strings"
 	"time"
@@ -69,8 +70,10 @@ func (s *RenderStep) executeCompletions(ctx context.Context, reqCtx *pipeline.Re
 	switch p := prompt.(type) {
 	case string:
 		// /v1/completions/render returns an array with one element per prompt.
-		// We reject batched prompts above, so we always expect length 1.
-		var renderResp []renderResponse
+		// We reject batched prompts above, so we always expect length 1. We
+		// decode into a minimal struct so completions stays decoupled from the
+		// chat-completions response shape.
+		var renderResp []completionsRenderResponse
 		if err := s.postRender(ctx, reqCtx, gateway.PathCompletions, &renderResp); err != nil {
 			return err
 		}
@@ -157,6 +160,10 @@ func (s *RenderStep) executeChatCompletions(ctx context.Context, reqCtx *pipelin
 // postRender marshals reqCtx.Body, POSTs it to <serviceAddress><basePath>/render,
 // and decodes the JSON response into out.
 func (s *RenderStep) postRender(ctx context.Context, reqCtx *pipeline.RequestContext, basePath string, out any) error {
+	if s.serviceAddress == "" {
+		return fmt.Errorf("render: service address not configured (set 'address' in render step params)")
+	}
+
 	logger := log.FromContext(ctx).WithName(RenderStepName)
 
 	body, err := json.Marshal(reqCtx.Body)
@@ -204,16 +211,29 @@ type renderFeatures struct {
 	KwargsData     map[string][]string                    `json:"kwargs_data"`
 }
 
+// completionsRenderResponse is a minimal view of the per-prompt object returned
+// by /v1/completions/render. Only token_ids is consumed; other fields
+// (request_id, sampling_params, model, etc.) are ignored.
+type completionsRenderResponse struct {
+	TokenIDs []int `json:"token_ids"`
+}
+
 func toIntSlice(values []any) ([]int, error) {
 	out := make([]int, 0, len(values))
 	for _, v := range values {
 		switch n := v.(type) {
 		case float64:
+			if n < 0 || n != math.Trunc(n) {
+				return nil, fmt.Errorf("render: invalid token in prompt array: %v (must be a non-negative integer)", v)
+			}
 			out = append(out, int(n))
 		case json.Number:
 			i, err := n.Int64()
 			if err != nil {
 				return nil, fmt.Errorf("render: invalid token in prompt array: %v", v)
+			}
+			if i < 0 {
+				return nil, fmt.Errorf("render: invalid token in prompt array: %v (must be a non-negative integer)", v)
 			}
 			out = append(out, int(i))
 		default:
