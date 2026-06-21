@@ -345,7 +345,7 @@ service in front of Envoy:
 | EPP scheduling | One cycle selects all phases (`disagg-profile-handler`) | One EPP call per phase, coordinator drives the cascade |
 | vLLM pod selection | All phase pods chosen up front in one scheduling cycle | Deferred per phase: each pod is selected only when that phase's call is made, at the point its destination becomes relevant |
 | Phase selection signal | EPP request headers `x-prefiller-host-port`, `x-encoder-hosts-ports` read by the sidecar | `EPP-Phase` header per call; per-phase EPP picks the pod |
-| Tokenization | On the workers | Once, in the coordinator's render step; token IDs reused downstream |
+| Tokenization | On the workers | Once, in the coordinator's render step; token IDs reused downstream (experimental path) |
 | Cross-phase state | Held by the sidecar | Held on the coordinator `RequestContext` |
 
 ---
@@ -380,6 +380,15 @@ type Step interface {
   the request or `nil` to continue. Return `pipeline.ErrPipelineDone` to stop the
   pipeline early and report success (the response must already have been written to
   `reqCtx.ResponseWriter`).
+- A terminal step that produces the client response (such as `decode`) writes to
+  `reqCtx.ResponseWriter` and returns `nil`, since it is the last step. `ErrPipelineDone`
+  is only for a non-terminal step that has already served the response and wants to skip
+  the remaining steps (the `conditional-decode` cache hit).
+- A response-producing step streams by proxying the upstream response to
+  `reqCtx.ResponseWriter` with `httputil.ReverseProxy` set to `FlushInterval: -1`, which
+  forwards each write immediately (SSE chunks stream through; a non-streaming JSON
+  response passes through as one body). `decode` and `conditional-decode` are the
+  reference implementations.
 
 A step is constructed by a `StepFactory`:
 
