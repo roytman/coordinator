@@ -380,15 +380,13 @@ type Step interface {
   the request or `nil` to continue. Return `pipeline.ErrPipelineDone` to stop the
   pipeline early and report success (the response must already have been written to
   `reqCtx.ResponseWriter`).
-- A terminal step that produces the client response (such as `decode`) writes to
-  `reqCtx.ResponseWriter` and returns `nil`, since it is the last step. `ErrPipelineDone`
-  is only for a non-terminal step that has already served the response and wants to skip
-  the remaining steps (the `conditional-decode` cache hit).
-- A response-producing step streams by proxying the upstream response to
-  `reqCtx.ResponseWriter` with `httputil.ReverseProxy` set to `FlushInterval: -1`, which
-  forwards each write immediately (SSE chunks stream through; a non-streaming JSON
-  response passes through as one body). `decode` and `conditional-decode` are the
-  reference implementations.
+- A response-producing step writes the client response to `reqCtx.ResponseWriter`,
+  typically by proxying the upstream response with `httputil.ReverseProxy` set to
+  `FlushInterval: -1`, which forwards each write immediately (SSE chunks stream through; a
+  non-streaming JSON response passes through as one body). A terminal step like `decode`
+  returns `nil`, since it is the last step; a non-terminal step that has fully served the
+  response returns `ErrPipelineDone` to skip the remaining steps (the `conditional-decode`
+  cache hit). `decode` and `conditional-decode` are the reference implementations.
 
 A step is constructed by a `StepFactory`:
 
