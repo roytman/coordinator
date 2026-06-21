@@ -160,9 +160,16 @@ completions prompt is already a token array). See
    body exceeding the fixed built-in size limit returns `413 Request Entity Too Large`.
 2. The server calls `pipeline.Execute(ctx, reqCtx)`.
 3. [pkg/pipeline/pipeline.go](../pkg/pipeline/pipeline.go) runs each step in order. A
-   step returning a normal error aborts the request (the server returns 502). A step
-   returning `ErrPipelineDone` stops the pipeline and reports success, used by
-   `conditional-decode` when the decode worker serves the request directly.
+   step returning an error aborts the request, and the server maps the error to a
+   client status (`classifyPipelineError`):
+   - a step error wrapping `ErrBadRequest` (invalid client input) returns `400 Bad Request`;
+   - an `UpstreamError` carrying a `4xx` from an upstream service (render or a worker via
+     the Gateway) is forwarded with that same `4xx`, since the request was the root cause;
+   - any other error, including an upstream `5xx`, returns `502 Bad Gateway`.
+
+   Upstream response bodies are logged server-side only and never returned to the client.
+   A step returning `ErrPipelineDone` instead stops the pipeline and reports success, used
+   by `conditional-decode` when the decode worker serves the request directly.
 4. The final `decode` step streams the worker response straight back to the client
    through the `RequestContext.ResponseWriter`.
 
