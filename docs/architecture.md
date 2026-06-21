@@ -41,7 +41,6 @@ absorb further processing modes as they are added.
 
 ## Table of Contents
 
-- [Related documents](#related-documents)
 - [High-level picture](#high-level-picture)
 - [Components](#components)
 - [Request lifecycle](#request-lifecycle)
@@ -74,14 +73,6 @@ absorb further processing modes as they are added.
   - [The built-in steps](#the-built-in-steps)
   - [Adding a step to the pipeline](#adding-a-step-to-the-pipeline)
 - [References](#references)
-
-## Related documents
-
-- [communication.md](communication.md) is the per-stage wire-format reference: exact
-  request and response JSON for every step and both request formats.
-- This document covers the coordinator's internal structure, the pipeline/step
-  abstraction, the EPP integration, how to add a step, and how to configure the
-  pipeline.
 
 ## High-level picture
 
@@ -651,4 +642,12 @@ factory that rejects its `params` fails startup with the factory's error.
 
 ## References
 
-- [llm-d Router](https://github.com/llm-d/llm-d-inference-scheduler)
+- [communication.md](communication.md): the per-stage wire-format reference, with exact
+  request and response JSON for every step and both request formats.
+- [llm-d](https://github.com/llm-d/llm-d): the umbrella project, covering overall goals,
+  components, and deployment.
+- [llm-d-router architecture](https://github.com/llm-d/llm-d-router/blob/main/docs/architecture.md):
+  the Inference Gateway, the EPP, and the sidecar-based disaggregation model the
+  coordinator is an alternative to.
+- [llm-d-inference-scheduler](https://github.com/llm-d/llm-d-inference-scheduler): the
+  EPP scheduling implementation (profile handlers, filters, scorers, deciders).
