@@ -170,8 +170,10 @@ completions prompt is already a token array). See
    Upstream response bodies are logged server-side only and never returned to the client.
    A step returning `ErrPipelineDone` instead stops the pipeline and reports success, used
    by `conditional-decode` when the decode worker serves the request directly.
-4. The final `decode` step streams the worker response straight back to the client
-   through the `RequestContext.ResponseWriter`.
+4. The final `decode` step proxies the worker response straight back to the client
+   through `RequestContext.ResponseWriter`, passing both a streaming SSE response and a
+   non-streaming (buffered JSON) response through unchanged. The worker decides which
+   based on the request's `stream` flag.
 
 ### RequestContext
 
