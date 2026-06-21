@@ -264,19 +264,19 @@ selected deployment-wide and required to match the connector configured on the p
 
 KV connector protocols ([pkg/connectors/kv/](../pkg/connectors/kv/)):
 
-| Connector | Protocol |
-| :---- | :---- |
-| `kv-nixl` | NIXL P2P RDMA: prefill stores KV for remote decode; decode pulls it via `remote_engine_id` / `remote_block_ids` / `remote_host` / `remote_port`. |
-| `kv-sglang` | SGLang bootstrap: `bootstrap_host`, `bootstrap_port`, `bootstrap_room`. |
-| `kv-shared-storage` | Shared filesystem / object store: prefill writes KV, decode reads it; no transfer descriptor on the wire. |
+| Connector | llm-d-router sidecar equivalent | Protocol |
+| :---- | :---- | :---- |
+| `kv-nixl` | `nixlv2` | NIXL P2P RDMA: prefill stores KV for remote decode; decode pulls it via `remote_engine_id` / `remote_block_ids` / `remote_host` / `remote_port`. |
+| `kv-sglang` | `sglang` | SGLang bootstrap: `bootstrap_host`, `bootstrap_port`, `bootstrap_room`. |
+| `kv-shared-storage` | `shared-storage` | Shared filesystem / object store: prefill writes KV, decode reads it; no transfer descriptor on the wire. |
 
 EC connector protocols ([pkg/connectors/ec/](../pkg/connectors/ec/)) ship encoder
 embeddings from encode pods to the prefill pod:
 
-| Connector | Protocol |
-| :---- | :---- |
-| `ec-nixl` | Encoder registers embeddings in NIXL-mapped memory and returns a per-`mm_hash` descriptor (`peer_host`, `peer_port`, `size_bytes`, `nixl_agent_metadata_b64`); the coordinator merges these and forwards them as `ec_transfer_params` on the prefill request. |
-| `ec-shared-storage` | Encoder writes embeddings to shared storage keyed by `mm_hash`; the prefill pod reads them back; no descriptor on the wire. |
+| Connector | llm-d-router sidecar equivalent | Protocol |
+| :---- | :---- | :---- |
+| `ec-nixl` | `ec-nixl` | Encoder registers embeddings in NIXL-mapped memory and returns a per-`mm_hash` descriptor (`peer_host`, `peer_port`, `size_bytes`, `nixl_agent_metadata_b64`); the coordinator merges these and forwards them as `ec_transfer_params` on the prefill request. |
+| `ec-shared-storage` | `ec-example` | Encoder writes embeddings to shared storage keyed by `mm_hash`; the prefill pod reads them back; no descriptor on the wire. |
 
 The KV and EC selections are independent. The exact request and response bodies for each
 phase and format are in [communication.md](communication.md).
