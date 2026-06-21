@@ -4,10 +4,11 @@ The coordinator is a Go service that accepts inference requests and drives them 
 a configurable pipeline of steps. It currently supports the OpenAI-compatible API
 (`/v1/chat/completions`, `/v1/completions`), and the entry layer is designed to be
 extended to other inference protocols. Each step performs one unit of
-work (download media, tokenize, encode, prefill, decode) and forwards sub-requests to
-vLLM worker pools through an Envoy Gateway. An Endpoint Picker (EPP) sitting behind
-Envoy selects the concrete pod for each phase, so the coordinator orchestrates the
-phases without knowing pod addresses.
+work (download media, tokenize, encode, prefill, decode). The pre-processing steps call
+side services directly (media download, and the render service for tokenization); the
+encode, prefill, and decode steps forward sub-requests to vLLM worker pools through an
+Envoy Gateway. An Endpoint Picker (EPP) sitting behind Envoy selects the concrete pod
+for each phase, so the coordinator orchestrates the phases without knowing pod addresses.
 
 The coordinator is stateless: all per-request state lives on a `RequestContext` that
 exists only for the lifetime of that request, and nothing is shared or persisted across
