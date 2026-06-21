@@ -201,7 +201,8 @@ Every coordinator-to-worker call carries an `EPP-Phase` header (`encode`, `prefi
 `decode`) so Envoy routes to the correct pool. The constants live in
 [pkg/gateway/paths.go](../pkg/gateway/paths.go). The request path is either the client's
 original OpenAI path or the internal `/inference/v1/generate` path, depending on
-`use_openai_format` (see [Configuring the pipeline](#configuring-the-pipeline)).
+`use_openai_format` (see [Configuring the pipeline](#configuring-the-pipeline)). Other
+paths can be added later as new protocols are supported.
 
 ## EPP integration
 
@@ -242,7 +243,7 @@ chosen decode endpoint, so the decode pod is selected first.
 ### Conditional decode handshake
 
 The coordinator's `conditional-decode` step is the implemented mechanism for the "can
-decode serve this directly" question. The step sends the decode request with a
+decode serve this directly" question. The step sends the decode request with the HTTP
 `Prefer: if-available` header:
 
 - The decode worker serves the request directly when it can (cache available). The
