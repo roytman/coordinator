@@ -89,24 +89,24 @@ lives on a per-request context held by the coordinator, not in a sidecar on the 
 pod.
 
 ```
-                                                        side services
-                                                   (download, render/tokenize,
-                                                      state, files, ...)
-                                                            ^
-                                                            | pre-process
-                                                            |
-  Client ---> Envoy <--- tokens in prompt ---> Coordinator Service
-               |  ^       responses (dehydrated or not)    |
-               |  |                                         | /encode /prefill /decode
-               |  |  ext_proc                               | (one call per phase,
-               |  +-----------------+-----------+----------\|/  routed by EPP-Phase)
-               |                    |           |           |
-               v               Encode EPP   Prefill EPP   Decode EPP
-        tokens in prompt
-        responses (dehydrated)
-               |
-               v
-         Model Servers (Encode / Prefill / Decode vLLM pools)
+        Client
+          |
+          |  inference request (OpenAI-compatible API)
+          v
+   Coordinator Service  ------------>  side services
+          |                            (media download, render / tokenize)
+          |
+          |  one call per phase, tagged EPP-Phase: encode | prefill | decode
+          v
+     Envoy Gateway
+          |  ext_proc
+          +-------------------+-------------------+
+          v                   v                   v
+      Encode EPP          Prefill EPP         Decode EPP    (per-phase endpoint picker)
+          |                   |                   |
+          v                   v                   v
+      Encode vLLM         Prefill vLLM        Decode vLLM   (worker pools)
+        pool                pool                pool
 ```
 
 In short:
