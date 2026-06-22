@@ -47,12 +47,6 @@ gateway:
   # streaming is not bounded by this.
   timeout: 60s
 
-  # use_openai_format=true means /v1/chat/completions and /v1/completions are
-  # forwarded as-is. false rewrites them to /inference/v1/generate using the
-  # internal token-array format. Affects prefill and decode.
-  # env: COORDINATOR_GATEWAY_USE_OPENAI_FORMAT
-  use_openai_format: true
-
 # ---------------------------------------------------------------------------
 # pipeline: ordered list of steps that process every request.
 # ---------------------------------------------------------------------------
@@ -69,6 +63,17 @@ pipeline:
   #   ec-nixl           - NIXL P2P RDMA
   #   ec-shared-storage - shared filesystem (default for non-RDMA clusters)
   ec_connector: ec-shared-storage
+
+  # use_openai_format selects the wire format for the encode and prefill steps.
+  #   true (default) - forward on the client's original OpenAI path
+  #                    (/v1/chat/completions, /v1/completions).
+  #   false          - rewrite to the internal /inference/v1/generate
+  #                    token-array (tokens-in) format.
+  # false requires a render step in the pipeline (render produces the token
+  # IDs the tokens-in format sends); the coordinator fails to start otherwise.
+  # A step may override this in its own params.
+  # env: COORDINATOR_PIPELINE_USE_OPENAI_FORMAT
+  use_openai_format: true
 
   steps:
     # -------------------------------------------------------------------
