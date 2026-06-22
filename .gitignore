@@ -43,3 +43,6 @@ vendor
 # Build output
 /build
 
+# Git worktrees
+/.worktrees/
+
