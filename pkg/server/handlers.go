@@ -55,7 +55,9 @@ func (s *Server) handleInference(w http.ResponseWriter, r *http.Request) {
 	model, _ := parsed["model"].(string)
 
 	requestID := r.Header.Get(reqcommon.RequestIDHeaderKey)
-	if !validRequestID.MatchString(requestID) {
+	clientRequestID := requestID
+	requestIDReplaced := !validRequestID.MatchString(requestID)
+	if requestIDReplaced {
 		requestID = uuid.New().String()
 	}
 
@@ -74,6 +76,12 @@ func (s *Server) handleInference(w http.ResponseWriter, r *http.Request) {
 
 	logger := ctrl.Log.WithName("handler").WithValues(reqcommon.RequestIDHeaderKey, reqCtx.RequestID)
 	ctx := log.IntoContext(r.Context(), logger)
+
+	if requestIDReplaced && clientRequestID != "" {
+		// Log the rejected length, never the raw value, to avoid reflecting
+		// attacker-controlled content into the log.
+		logger.V(logutil.DEFAULT).Info("replaced invalid client request ID", "rejectedLength", len(clientRequestID))
+	}
 
 	logger.V(logutil.DEFAULT).Info("received request", "path", r.URL.Path, "model", model, "stream", stream)
 
