@@ -45,7 +45,7 @@ func paramInt(params map[string]any, key string) (value int, ok bool, err error)
 }
 
 // paramDuration reads a duration step parameter from a Go duration string (e.g.
-// "30s"). An unparseable string is an error rather than a silent fallback, so a
+// "30s"). An unparsable string is an error rather than a silent fallback, so a
 // malformed value such as "30" (no unit) fails config load instead of running
 // the default. ok is false when the key is absent.
 func paramDuration(params map[string]any, key string) (value time.Duration, ok bool, err error) {

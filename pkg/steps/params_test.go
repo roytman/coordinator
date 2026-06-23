@@ -103,15 +103,15 @@ func TestNewRenderStep_FloatFormattedLimit(t *testing.T) {
 	}
 }
 
-func TestNewRenderStep_UnparseableTimeout(t *testing.T) {
+func TestNewRenderStep_UnparsableTimeout(t *testing.T) {
 	if _, err := NewRenderStep(map[string]any{"timeout": "30"}); err == nil {
 		t.Fatal("expected error for timeout without a unit")
 	}
 }
 
-func TestNewReplaceMediaURLsStep_UnparseableTimeout(t *testing.T) {
+func TestNewReplaceMediaURLsStep_UnparsableTimeout(t *testing.T) {
 	if _, err := NewReplaceMediaURLsStep(map[string]any{"download_timeout": "abc"}); err == nil {
-		t.Fatal("expected error for unparseable download_timeout")
+		t.Fatal("expected error for unparsable download_timeout")
 	}
 }
 
