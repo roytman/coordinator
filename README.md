@@ -90,6 +90,8 @@ To remove a step, delete it from the list. To reorder, move entries up or down. 
 | replace-media-urls | `max_concurrent_downloads` | `10` | Max parallel downloads |
 | render | `address` | (required) | Base URL of the rendering service |
 | render | `timeout` | `30s` | Timeout for a single render call |
+| render | `max_total_tokens` | `0` (unlimited) | Reject requests whose tokenized prompt exceeds this |
+| render | `max_total_placeholder_tokens` | `0` (unlimited) | Reject requests whose summed image-placeholder length exceeds this |
 | encode | `max_parallel` | `8` | Max parallel encode requests |
 
 ### Gateway Routing
@@ -98,7 +100,7 @@ The coordinator sends every sub-request to the same gateway address. It does not
 
 | Phase | Header | Path |
 |-------|--------|------|
-| Encode | `EPP-Phase: encode` | `/inference/v1/generate`, or the original OpenAI path when `use_openai_format` is set |
+| Encode | `EPP-Phase: encode` | `/v1/completions` for completions requests; otherwise `/inference/v1/generate`, or `/v1/chat/completions` when `use_openai_format` is set |
 | Prefill | `EPP-Phase: prefill` | same as encode |
 | Decode | `EPP-Phase: decode` | original client request path (`/v1/chat/completions` or `/v1/completions`) |
 
