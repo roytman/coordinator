@@ -29,9 +29,11 @@ func (s *Server) handleCompletions(w http.ResponseWriter, r *http.Request) {
 
 const maxRequestBodySize = 64 << 20 // 64 MB
 
-// validRequestID bounds a client-supplied x-request-id to safe characters and a
-// fixed length. A header that fails the match is replaced with a generated UUID,
-// so attacker-controlled content never reaches error responses or logs.
+// validRequestID bounds a client-supplied x-request-id to alphanumerics and
+// dashes, at most 128 characters. handleInference replaces a header that fails
+// the match with a generated UUID before it reaches error responses; the
+// request-logging middleware redacts it. This keeps attacker-controlled content
+// out of both surfaces.
 var validRequestID = regexp.MustCompile(`^[a-zA-Z0-9\-]{1,128}$`)
 
 func (s *Server) handleInference(w http.ResponseWriter, r *http.Request) {
