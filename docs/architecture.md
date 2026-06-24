@@ -271,8 +271,9 @@ KV connector protocols ([pkg/connectors/kv/](../pkg/connectors/kv/)):
 | `kv-shared-storage` | `shared-storage` | Shared filesystem / object store: prefill writes KV, decode reads it; no transfer descriptor on the wire. |
 
 The `kv-sglang` `bootstrap_port` advertised to prefill pods defaults to 8998 and can be
-overridden process-wide with the `SGLANG_BOOTSTRAP_PORT` environment variable. A
-non-integer value is rejected in favor of the default and logged at startup.
+overridden process-wide with the `SGLANG_BOOTSTRAP_PORT` environment variable. The value
+is read once on the first prefill request that uses the connector; a non-integer value is
+rejected in favor of the default and logged at error level.
 
 EC connector protocols ([pkg/connectors/ec/](../pkg/connectors/ec/)) ship encoder
 embeddings from encode pods to the prefill pod:
