@@ -145,9 +145,10 @@ func (s *ReplaceMediaURLsStep) Execute(ctx context.Context, reqCtx *pipeline.Req
 				continue
 			}
 			imageURLs = append(imageURLs, imageRef{
-				msgIdx:  msgIdx,
-				partIdx: partIdx,
-				url:     url,
+				msgIdx:   msgIdx,
+				partIdx:  partIdx,
+				url:      url,
+				imageURL: imageURL,
 			})
 		}
 	}
@@ -197,12 +198,7 @@ func (s *ReplaceMediaURLsStep) Execute(ctx context.Context, reqCtx *pipeline.Req
 
 	for _, r := range results {
 		if !strings.HasPrefix(r.ref.url, "data:") {
-			dataURI := fmt.Sprintf("data:%s;base64,%s", r.contentType, r.base64Data)
-			msg := messages[r.ref.msgIdx].(map[string]any)
-			content := msg["content"].([]any)
-			part := content[r.ref.partIdx].(map[string]any)
-			imageURL := part[imageURLPartType].(map[string]any)
-			imageURL["url"] = dataURI
+			r.ref.imageURL["url"] = fmt.Sprintf("data:%s;base64,%s", r.contentType, r.base64Data)
 		}
 
 		appendMultimodalEntry(reqCtx, r.contentType, r.base64Data)
@@ -264,9 +260,10 @@ func (s *ReplaceMediaURLsStep) download(ctx context.Context, rawURL string) ([]b
 }
 
 type imageRef struct {
-	msgIdx  int
-	partIdx int
-	url     string
+	msgIdx   int
+	partIdx  int
+	url      string
+	imageURL map[string]any
 }
 
 type downloadResult struct {
