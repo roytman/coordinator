@@ -140,7 +140,18 @@ func redactBody(data []byte) any {
 	return redactStrings(v)
 }
 
+// maxRedactDepth caps redactStrings recursion so a deeply nested adversarial
+// body cannot drive it toward the 500-level encoding/json limit on a trace log.
+const maxRedactDepth = 32
+
 func redactStrings(v any) any {
+	return redactStringsDepth(v, 0)
+}
+
+func redactStringsDepth(v any, depth int) any {
+	if depth >= maxRedactDepth {
+		return "[truncated]"
+	}
 	switch val := v.(type) {
 	case string:
 		if len(val) > 50 {
@@ -156,7 +167,7 @@ func redactStrings(v any) any {
 	case map[string]any:
 		out := make(map[string]any, len(val))
 		for k, item := range val {
-			out[k] = redactStrings(item)
+			out[k] = redactStringsDepth(item, depth+1)
 		}
 		return out
 	case []any:
@@ -164,14 +175,14 @@ func redactStrings(v any) any {
 		if len(val) > maxElems {
 			out := make([]any, maxElems+1)
 			for i := 0; i < maxElems; i++ {
-				out[i] = redactStrings(val[i])
+				out[i] = redactStringsDepth(val[i], depth+1)
 			}
 			out[maxElems] = fmt.Sprintf("... +%d more", len(val)-maxElems)
 			return out
 		}
 		out := make([]any, len(val))
 		for i, item := range val {
-			out[i] = redactStrings(item)
+			out[i] = redactStringsDepth(item, depth+1)
 		}
 		return out
 	default:

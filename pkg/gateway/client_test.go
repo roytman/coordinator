@@ -111,6 +111,27 @@ func TestRedactStrings_TruncatesLongArray(t *testing.T) {
 	}
 }
 
+// Deeply nested input is cut off at maxRedactDepth with a sentinel, so an
+// adversarial body cannot drive recursion toward the encoding/json limit.
+func TestRedactStrings_CapsDepth(t *testing.T) {
+	var v any = "leaf"
+	for i := 0; i < maxRedactDepth+10; i++ {
+		v = map[string]any{"k": v}
+	}
+
+	got := redactStrings(v)
+	for i := 0; i < maxRedactDepth; i++ {
+		m, ok := got.(map[string]any)
+		if !ok {
+			t.Fatalf("level %d: expected map, got %T (%v)", i, got, got)
+		}
+		got = m["k"]
+	}
+	if got != "[truncated]" {
+		t.Errorf("at depth %d = %v, want %q", maxRedactDepth, got, "[truncated]")
+	}
+}
+
 func TestRedactBody(t *testing.T) {
 	t.Run("valid JSON redacts string values", func(t *testing.T) {
 		blob := strings.Repeat("Z", 60)
