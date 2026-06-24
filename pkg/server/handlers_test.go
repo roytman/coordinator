@@ -122,6 +122,18 @@ func TestHandleInference_NullBodyMapsTo400(t *testing.T) {
 	}
 }
 
+func TestHandleInference_StreamingRequestSucceeds(t *testing.T) {
+	// A streaming request clears the write deadline before executing the
+	// pipeline. The recorder reports the deadline unsupported, which the
+	// handler must swallow rather than fail the request.
+	req := httptest.NewRequest(http.MethodPost, "/v1/chat/completions", strings.NewReader(`{"model":"m","stream":true}`))
+	rec := httptest.NewRecorder()
+	newTestServer(nil).handleInference(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200 for streaming request, got %d", rec.Code)
+	}
+}
+
 func TestHandleInference_ValidRequestIDIsReflected(t *testing.T) {
 	// A well-formed client request ID is echoed in the error response.
 	stepErr := fmt.Errorf("render: %w", pipeline.ErrBadRequest)
