@@ -99,15 +99,17 @@ func (c *Client) Request(ctx context.Context, method, path string, body []byte, 
 		return nil, fmt.Errorf("sending request to gateway: %w", err)
 	}
 
-	respBody, err := io.ReadAll(resp.Body)
-	resp.Body.Close()
-	if err != nil {
-		return nil, fmt.Errorf("reading response from gateway: %w", err)
-	}
+	// Buffer the body only to log it at TRACE; otherwise hand the caller the
+	// unread stream so large prefill/encode responses are not held in memory.
 	if v := logger.V(logutil.TRACE); v.Enabled() {
+		respBody, err := io.ReadAll(resp.Body)
+		resp.Body.Close()
+		if err != nil {
+			return nil, fmt.Errorf("reading response from gateway: %w", err)
+		}
 		v.Info("response body", "status", resp.StatusCode, "body", redactBody(respBody))
+		resp.Body = io.NopCloser(bytes.NewReader(respBody))
 	}
-	resp.Body = io.NopCloser(bytes.NewReader(respBody))
 
 	return resp, nil
 }
