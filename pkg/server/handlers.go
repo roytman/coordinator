@@ -105,7 +105,7 @@ func (s *Server) handleInference(w http.ResponseWriter, r *http.Request) {
 		// error. Clear the write deadline for streaming only; non-streaming
 		// requests keep it as a slow-client guard.
 		if err := http.NewResponseController(w).SetWriteDeadline(time.Time{}); err != nil && !errors.Is(err, http.ErrNotSupported) {
-			logger.V(logutil.DEFAULT).Info("could not clear write deadline for streaming response", "error", err.Error())
+			logger.V(logutil.DEFAULT).Info("could not clear write deadline for streaming response", "error", err)
 		}
 	}
 

@@ -24,6 +24,7 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
 
 	reqcommon "github.com/llm-d/llm-d-router/pkg/common/request"
 
@@ -122,15 +123,46 @@ func TestHandleInference_NullBodyMapsTo400(t *testing.T) {
 	}
 }
 
-func TestHandleInference_StreamingRequestSucceeds(t *testing.T) {
-	// A streaming request clears the write deadline before executing the
-	// pipeline. The recorder reports the deadline unsupported, which the
-	// handler must swallow rather than fail the request.
+// deadlineRecorder wraps httptest.ResponseRecorder with a SetWriteDeadline
+// method so http.NewResponseController can reach it; it records the deadline
+// the handler sets.
+type deadlineRecorder struct {
+	*httptest.ResponseRecorder
+	deadlineSet   bool
+	deadlineValue time.Time
+}
+
+func (d *deadlineRecorder) SetWriteDeadline(t time.Time) error {
+	d.deadlineSet = true
+	d.deadlineValue = t
+	return nil
+}
+
+func TestHandleInference_StreamingClearsWriteDeadline(t *testing.T) {
+	// A streaming request must clear the connection write deadline (zero value)
+	// before executing the pipeline, so a long stream is not cut by WriteTimeout.
 	req := httptest.NewRequest(http.MethodPost, "/v1/chat/completions", strings.NewReader(`{"model":"m","stream":true}`))
-	rec := httptest.NewRecorder()
+	rec := &deadlineRecorder{ResponseRecorder: httptest.NewRecorder()}
 	newTestServer(nil).handleInference(rec, req)
 	if rec.Code != http.StatusOK {
 		t.Fatalf("expected 200 for streaming request, got %d", rec.Code)
+	}
+	if !rec.deadlineSet {
+		t.Fatal("streaming request did not clear the write deadline")
+	}
+	if !rec.deadlineValue.IsZero() {
+		t.Fatalf("expected zero deadline to disable the timeout, got %v", rec.deadlineValue)
+	}
+}
+
+func TestHandleInference_NonStreamingDoesNotTouchWriteDeadline(t *testing.T) {
+	// A non-streaming request must leave the write deadline alone, keeping
+	// WriteTimeout as a slow-client guard.
+	req := httptest.NewRequest(http.MethodPost, "/v1/chat/completions", strings.NewReader(`{"model":"m"}`))
+	rec := &deadlineRecorder{ResponseRecorder: httptest.NewRecorder()}
+	newTestServer(nil).handleInference(rec, req)
+	if rec.deadlineSet {
+		t.Fatal("non-streaming request must not change the write deadline")
 	}
 }
 
