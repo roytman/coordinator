@@ -18,8 +18,10 @@ package kv
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"strconv"
+	"sync"
 
 	"github.com/google/uuid"
 	"sigs.k8s.io/controller-runtime/pkg/log"
@@ -34,15 +36,48 @@ const (
 	fieldBootstrapRoom = "bootstrap_room"
 )
 
-var sglangBootstrapPort = func() int {
-	port := 8998
-	if s := os.Getenv("SGLANG_BOOTSTRAP_PORT"); s != "" {
-		if p, err := strconv.Atoi(s); err == nil {
-			port = p
-		}
+// envSGLangBootstrapPort optionally overrides the bootstrap port advertised to
+// prefill pods. A value that is not a valid integer is rejected in favor of the
+// default and logged, so the fallback is observable.
+const (
+	envSGLangBootstrapPort     = "SGLANG_BOOTSTRAP_PORT"
+	defaultSGLangBootstrapPort = 8998
+)
+
+var (
+	sglangBootstrapPortOnce sync.Once
+	sglangBootstrapPort     int
+)
+
+// parseSGLangBootstrapPort resolves the bootstrap port from the raw env value.
+// An empty value selects the default. rejected is true only when a non-empty
+// value fails to parse, in which case the default is returned.
+func parseSGLangBootstrapPort(raw string) (port int, rejected bool) {
+	if raw == "" {
+		return defaultSGLangBootstrapPort, false
 	}
-	return port
-}()
+	p, err := strconv.Atoi(raw)
+	if err != nil {
+		return defaultSGLangBootstrapPort, true
+	}
+	return p, false
+}
+
+// resolveSGLangBootstrapPort reads SGLANG_BOOTSTRAP_PORT once on first use,
+// where a configured context logger is available to report a rejected value.
+func resolveSGLangBootstrapPort(ctx context.Context) int {
+	sglangBootstrapPortOnce.Do(func() {
+		raw := os.Getenv(envSGLangBootstrapPort)
+		port, rejected := parseSGLangBootstrapPort(raw)
+		if rejected {
+			log.FromContext(ctx).WithName(loggerName).Error(
+				fmt.Errorf("invalid %s %q", envSGLangBootstrapPort, raw),
+				"using default SGLang bootstrap port", "default", defaultSGLangBootstrapPort)
+		}
+		sglangBootstrapPort = port
+	})
+	return sglangBootstrapPort
+}
 
 // sglangKV implements the SGLang KV transfer protocol. Both prefill and decode
 // receive bootstrap coordination fields (port and room ID). The prefill pod is
@@ -57,7 +92,7 @@ func (sglangKV) PreparePrefillKVParams(ctx context.Context, _ *pipeline.RequestC
 	params := map[string]any{
 		"do_remote_decode":  true,
 		"do_remote_prefill": false,
-		fieldBootstrapPort:  sglangBootstrapPort,
+		fieldBootstrapPort:  resolveSGLangBootstrapPort(ctx),
 		fieldBootstrapRoom:  uuid.NewString(),
 	}
 	log.FromContext(ctx).WithName(loggerName).V(logutil.TRACE).Info("preparing prefill kv params", "params", params)
