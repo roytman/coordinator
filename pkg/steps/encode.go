@@ -46,7 +46,7 @@ type EncodeStep struct {
 	ec              ec.Connector
 }
 
-func NewEncodeStep(params map[string]any) (pipeline.Step, error) {
+func NewEncodeStep(gwClient *gateway.Client, params map[string]any) (pipeline.Step, error) {
 	useOpenAI := parseUseOpenAIFormat(params)
 	maxParallel := 8
 	if v, ok, err := paramInt(params, "max_parallel"); err != nil {
@@ -65,12 +65,9 @@ func NewEncodeStep(params map[string]any) (pipeline.Step, error) {
 	return &EncodeStep{
 		useOpenAIFormat: useOpenAI,
 		maxParallel:     maxParallel,
+		gwClient:        gwClient,
 		ec:              ecConn,
 	}, nil
-}
-
-func (s *EncodeStep) SetGatewayClient(c *gateway.Client) {
-	s.gwClient = c
 }
 
 func (s *EncodeStep) Name() string { return EncodeStepName }

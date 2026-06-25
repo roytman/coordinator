@@ -40,12 +40,8 @@ type ConditionalDecodeStep struct {
 	gwClient        *gateway.Client
 }
 
-func NewConditionalDecodeStep(params map[string]any) (pipeline.Step, error) {
-	return &ConditionalDecodeStep{useOpenAIFormat: parseUseOpenAIFormat(params)}, nil
-}
-
-func (s *ConditionalDecodeStep) SetGatewayClient(c *gateway.Client) {
-	s.gwClient = c
+func NewConditionalDecodeStep(gwClient *gateway.Client, params map[string]any) (pipeline.Step, error) {
+	return &ConditionalDecodeStep{useOpenAIFormat: parseUseOpenAIFormat(params), gwClient: gwClient}, nil
 }
 
 func (s *ConditionalDecodeStep) Name() string { return ConditionalDecodeStepName }
