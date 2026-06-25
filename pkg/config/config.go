@@ -32,10 +32,11 @@ type Config struct {
 }
 
 type ServerConfig struct {
-	ListenAddr      string        `mapstructure:"listen_addr"`
-	ReadTimeout     time.Duration `mapstructure:"read_timeout"`
-	WriteTimeout    time.Duration `mapstructure:"write_timeout"`
-	ShutdownTimeout time.Duration `mapstructure:"shutdown_timeout"`
+	ListenAddr         string        `mapstructure:"listen_addr"`
+	ReadTimeout        time.Duration `mapstructure:"read_timeout"`
+	WriteTimeout       time.Duration `mapstructure:"write_timeout"`
+	ShutdownTimeout    time.Duration `mapstructure:"shutdown_timeout"`
+	MaxRequestBodySize int64         `mapstructure:"max_request_body_size"`
 }
 
 type GatewayConfig struct {
@@ -69,6 +70,7 @@ func Load(path string) (*Config, error) {
 	v.SetDefault("server.read_timeout", 30*time.Second)
 	v.SetDefault("server.write_timeout", 120*time.Second)
 	v.SetDefault("server.shutdown_timeout", 25*time.Second)
+	v.SetDefault("server.max_request_body_size", 64<<20)
 	v.SetDefault("gateway.max_idle_conns_per_host", 100)
 	v.SetDefault("gateway.idle_conn_timeout", 90*time.Second)
 	v.SetDefault("gateway.timeout", 60*time.Second)

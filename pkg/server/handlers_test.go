@@ -123,6 +123,18 @@ func TestHandleInference_NullBodyMapsTo400(t *testing.T) {
 	}
 }
 
+func TestHandleInference_BodyOverConfiguredCapMapsTo413(t *testing.T) {
+	// A body larger than server.max_request_body_size is rejected before parsing.
+	p := pipeline.New([]pipeline.Step{stubStep{name: "stub"}})
+	srv := New(config.ServerConfig{MaxRequestBodySize: 16}, p)
+	req := httptest.NewRequest(http.MethodPost, "/v1/chat/completions", strings.NewReader(`{"model":"a-model-that-is-too-long"}`))
+	rec := httptest.NewRecorder()
+	srv.handleInference(rec, req)
+	if rec.Code != http.StatusRequestEntityTooLarge {
+		t.Fatalf("expected 413 for oversize body, got %d", rec.Code)
+	}
+}
+
 // deadlineRecorder wraps httptest.ResponseRecorder with a SetWriteDeadline
 // method so http.NewResponseController can reach it; it records the deadline
 // the handler sets.

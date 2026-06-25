@@ -35,7 +35,11 @@ import (
 	"github.com/llm-d/coordinator/pkg/pipeline"
 )
 
-const maxRequestBodySize = 64 << 20 // 64 MB
+// defaultMaxRequestBodySize caps the request body when server.max_request_body_size
+// is unset. Generous so a multimodal request that inlines images as data: URIs
+// (which never hit the download size cap) still fits; operators on text-only
+// deployments can lower it.
+const defaultMaxRequestBodySize = 64 << 20 // 64 MB
 
 // validRequestID bounds a client-supplied x-request-id to alphanumerics and
 // dashes, at most 128 characters. handleInference replaces a header that fails
@@ -45,12 +49,12 @@ const maxRequestBodySize = 64 << 20 // 64 MB
 var validRequestID = regexp.MustCompile(`^[a-zA-Z0-9\-]{1,128}$`)
 
 func (s *Server) handleInference(w http.ResponseWriter, r *http.Request) {
-	body, err := io.ReadAll(io.LimitReader(r.Body, maxRequestBodySize+1))
+	body, err := io.ReadAll(io.LimitReader(r.Body, s.maxRequestBodySize+1))
 	if err != nil {
 		http.Error(w, "failed to read request body", http.StatusBadRequest)
 		return
 	}
-	if len(body) > maxRequestBodySize {
+	if int64(len(body)) > s.maxRequestBodySize {
 		http.Error(w, "request body too large", http.StatusRequestEntityTooLarge)
 		return
 	}

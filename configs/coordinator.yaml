@@ -9,6 +9,11 @@
 # log_level controls global log verbosity. Higher = more output.
 #   1 = warning, 2 = info, 3 = verbose, 4 = debug, 5 = trace.
 # The CLI flag -v overrides this when set.
+#
+# Do not enable level 5 (trace) in production. Trace logs the full
+# kv_transfer_params sent to prefill and decode pods, including coordination
+# fields such as bootstrap_host, bootstrap_room, and remote_host. A compromised
+# log store would expose them.
 log_level: 2
 
 # ---------------------------------------------------------------------------
@@ -26,9 +31,17 @@ server:
   # bounds the total in-flight time of a single chat — set generously.
   write_timeout: 120s
   
-  # Kubernetes terminationGracePeriodSeconds must exceed shutdown_timeout; SSE 
+  # Kubernetes terminationGracePeriodSeconds must exceed shutdown_timeout; SSE
   # streams held open for up to write_timeout are force-closed once the grace period expires.
   shutdown_timeout: 25s
+
+  # max_request_body_size caps the request body in bytes. The default is sized
+  # for multimodal requests that inline images as data: URIs, which land in the
+  # body verbatim and are not subject to replace-media-urls.max_download_size. A
+  # text-only deployment can set a much smaller value. Bytes; default 67108864
+  # (64 MB).
+  # env: COORDINATOR_SERVER_MAX_REQUEST_BODY_SIZE
+  # max_request_body_size: 67108864
 
 # ---------------------------------------------------------------------------
 # gateway: outbound HTTP client used by encode/prefill/decode to reach the

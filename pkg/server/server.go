@@ -77,12 +77,17 @@ func logRequestResponse(next http.Handler) http.Handler {
 }
 
 type Server struct {
-	httpServer *http.Server
-	pipeline   *pipeline.Pipeline
+	httpServer         *http.Server
+	pipeline           *pipeline.Pipeline
+	maxRequestBodySize int64
 }
 
 func New(cfg config.ServerConfig, p *pipeline.Pipeline) *Server {
-	s := &Server{pipeline: p}
+	maxBodySize := cfg.MaxRequestBodySize
+	if maxBodySize <= 0 {
+		maxBodySize = defaultMaxRequestBodySize
+	}
+	s := &Server{pipeline: p, maxRequestBodySize: maxBodySize}
 
 	r := chi.NewRouter()
 	r.Use(middleware.RequestID)
