@@ -177,6 +177,11 @@ func (s *ReplaceMediaURLsStep) Execute(ctx context.Context, reqCtx *pipeline.Req
 		return fmt.Errorf("too many multimodal entries: got %d, max %d: %w", len(imageURLs), s.maxMultimodalEntries, pipeline.ErrBadRequest)
 	}
 
+	// Cancel any in-flight downloads when Execute returns early (cancelled
+	// context or a rejected data URI), so goroutines do not outlive the step.
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
+
 	g, gCtx := errgroup.WithContext(ctx)
 	g.SetLimit(s.maxConcurrentDownloads)
 
