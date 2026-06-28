@@ -187,8 +187,8 @@ func (s *ReplaceMediaURLsStep) Execute(ctx context.Context, reqCtx *pipeline.Req
 
 	results := make([]downloadResult, len(imageURLs))
 	for i, ref := range imageURLs {
-		if err := ctx.Err(); err != nil {
-			return err
+		if err := gCtx.Err(); err != nil {
+			break
 		}
 		if strings.HasPrefix(ref.url, "data:") {
 			contentType, b64, err := parseDataURI(ref.url)
@@ -220,6 +220,9 @@ func (s *ReplaceMediaURLsStep) Execute(ctx context.Context, reqCtx *pipeline.Req
 	logger.V(logutil.TRACE).Info("downloading images", "count", len(imageURLs), "http_proxy_set", os.Getenv("HTTP_PROXY") != "", "https_proxy_set", os.Getenv("HTTPS_PROXY") != "")
 
 	if err := g.Wait(); err != nil {
+		return err
+	}
+	if err := ctx.Err(); err != nil {
 		return err
 	}
 
