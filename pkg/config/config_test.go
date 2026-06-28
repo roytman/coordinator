@@ -156,4 +156,3 @@ func TestLoadMissingFile(t *testing.T) {
 		t.Fatal("Load() of missing file: got nil error, want failure")
 	}
 }
-
