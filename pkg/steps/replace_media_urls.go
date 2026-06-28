@@ -300,9 +300,8 @@ type downloadResult struct {
 }
 
 // allowedImageContentTypes is the set of data URI media types a vision model
-// accepts. Restricting it keeps non-image payloads (HTML, SVG, scripts) from
-// being inlined and forwarded downstream. Other multimedia types (audio,
-// video) will be added here as the pipeline gains support for them.
+// accepts. Non-image payloads (HTML, SVG, scripts, audio, video) are rejected
+// so they are not inlined and forwarded downstream.
 var allowedImageContentTypes = map[string]struct{}{
 	"image/jpeg": {},
 	"image/png":  {},
