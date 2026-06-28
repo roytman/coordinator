@@ -10,10 +10,10 @@
 #   1 = warning, 2 = info, 3 = verbose, 4 = debug, 5 = trace.
 # The CLI flag -v overrides this when set.
 #
-# Do not enable level 5 (trace) in production. Trace logs the full
-# kv_transfer_params sent to prefill and decode pods, including coordination
-# fields such as bootstrap_host, bootstrap_room, and remote_host. A compromised
-# log store would expose them.
+# Do not enable level 5 (trace) in production. Trace logs full request and
+# response bodies through the gateway client (encode and prefill steps),
+# including kv_transfer_params and ec_transfer_params coordination fields such as bootstrap_host,
+# bootstrap_room, and remote_host. A compromised log store would expose them.
 log_level: 2
 
 # ---------------------------------------------------------------------------

@@ -31,6 +31,11 @@ type Config struct {
 	Pipeline PipelineConfig `mapstructure:"pipeline"`
 }
 
+// DefaultMaxRequestBodySize is the default cap for server.max_request_body_size.
+// It is generous enough to accommodate multimodal requests that inline images
+// as data: URIs; text-only deployments can lower it.
+const DefaultMaxRequestBodySize = 64 << 20 // 64 MB
+
 type ServerConfig struct {
 	ListenAddr         string        `mapstructure:"listen_addr"`
 	ReadTimeout        time.Duration `mapstructure:"read_timeout"`
@@ -70,7 +75,7 @@ func Load(path string) (*Config, error) {
 	v.SetDefault("server.read_timeout", 30*time.Second)
 	v.SetDefault("server.write_timeout", 120*time.Second)
 	v.SetDefault("server.shutdown_timeout", 25*time.Second)
-	v.SetDefault("server.max_request_body_size", 64<<20)
+	v.SetDefault("server.max_request_body_size", DefaultMaxRequestBodySize)
 	v.SetDefault("gateway.max_idle_conns_per_host", 100)
 	v.SetDefault("gateway.idle_conn_timeout", 90*time.Second)
 	v.SetDefault("gateway.timeout", 60*time.Second)

@@ -18,6 +18,8 @@ package server
 
 import (
 	"context"
+	"fmt"
+	"math"
 	"net"
 	"net/http"
 
@@ -84,8 +86,19 @@ type Server struct {
 
 func New(cfg config.ServerConfig, p *pipeline.Pipeline) *Server {
 	maxBodySize := cfg.MaxRequestBodySize
-	if maxBodySize <= 0 {
-		maxBodySize = defaultMaxRequestBodySize
+	if maxBodySize == 0 {
+		// Zero means unset; Viper fills this from the config default in
+		// production. Direct callers (e.g. tests) that leave it unset get
+		// the same default.
+		maxBodySize = config.DefaultMaxRequestBodySize
+	}
+	if maxBodySize < 0 {
+		panic(fmt.Sprintf("server: MaxRequestBodySize must be positive, got %d", maxBodySize))
+	}
+	if maxBodySize > math.MaxInt64-1 {
+		// maxRequestBodySize+1 is used as the io.LimitReader sentinel; MaxInt64
+		// would overflow to a negative limit causing immediate EOF.
+		panic(fmt.Sprintf("server: MaxRequestBodySize must be at most %d, got %d", int64(math.MaxInt64-1), maxBodySize))
 	}
 	s := &Server{pipeline: p, maxRequestBodySize: maxBodySize}
 

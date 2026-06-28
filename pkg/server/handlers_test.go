@@ -20,6 +20,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"math"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -133,6 +134,28 @@ func TestHandleInference_BodyOverConfiguredCapMapsTo413(t *testing.T) {
 	if rec.Code != http.StatusRequestEntityTooLarge {
 		t.Fatalf("expected 413 for oversize body, got %d", rec.Code)
 	}
+}
+
+func TestNew_PanicsOnNegativeMaxRequestBodySize(t *testing.T) {
+	p := pipeline.New([]pipeline.Step{stubStep{name: "stub"}})
+	defer func() {
+		if r := recover(); r == nil {
+			t.Fatal("expected panic for negative MaxRequestBodySize")
+		}
+	}()
+	New(config.ServerConfig{MaxRequestBodySize: -1}, p)
+}
+
+func TestNew_PanicsOnOverflowMaxRequestBodySize(t *testing.T) {
+	// MaxInt64 would cause maxRequestBodySize+1 to overflow to a negative
+	// io.LimitReader limit, making it return immediate EOF.
+	p := pipeline.New([]pipeline.Step{stubStep{name: "stub"}})
+	defer func() {
+		if r := recover(); r == nil {
+			t.Fatal("expected panic for MaxRequestBodySize > MaxInt64-1")
+		}
+	}()
+	New(config.ServerConfig{MaxRequestBodySize: math.MaxInt64}, p)
 }
 
 // deadlineRecorder wraps httptest.ResponseRecorder with a SetWriteDeadline

@@ -35,12 +35,6 @@ import (
 	"github.com/llm-d/coordinator/pkg/pipeline"
 )
 
-// defaultMaxRequestBodySize caps the request body when server.max_request_body_size
-// is unset. Generous so a multimodal request that inlines images as data: URIs
-// (which never hit the download size cap) still fits; operators on text-only
-// deployments can lower it.
-const defaultMaxRequestBodySize = 64 << 20 // 64 MB
-
 // validRequestID bounds a client-supplied x-request-id to alphanumerics and
 // dashes, at most 128 characters. handleInference replaces a header that fails
 // the match with a generated UUID before it reaches error responses; the
