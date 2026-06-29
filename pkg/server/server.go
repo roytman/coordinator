@@ -95,10 +95,11 @@ func New(cfg config.ServerConfig, p *pipeline.Pipeline) *Server {
 	if maxBodySize < 0 {
 		panic(fmt.Sprintf("server: MaxRequestBodySize must be positive, got %d", maxBodySize))
 	}
-	if maxBodySize > math.MaxInt64-1 {
-		// maxRequestBodySize+1 is used as the io.LimitReader sentinel; MaxInt64
-		// would overflow to a negative limit causing immediate EOF.
-		panic(fmt.Sprintf("server: MaxRequestBodySize must be at most %d, got %d", int64(math.MaxInt64-1), maxBodySize))
+	if maxBodySize > (math.MaxInt64-1)/config.BytesPerMB {
+		// maxRequestBodySize*1024*1024+1 is used as the io.LimitReader sentinel;
+		// an MB value that overflows int64 when converted to bytes would cause
+		// LimitReader to receive a negative limit and return immediate EOF.
+		panic(fmt.Sprintf("server: MaxRequestBodySize must be at most %d MB, got %d", int64((math.MaxInt64-1)/config.BytesPerMB), maxBodySize))
 	}
 	s := &Server{pipeline: p, maxRequestBodySize: maxBodySize}
 

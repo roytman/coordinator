@@ -31,10 +31,13 @@ type Config struct {
 	Pipeline PipelineConfig `mapstructure:"pipeline"`
 }
 
-// DefaultMaxRequestBodySize is the default cap for server.max_request_body_size.
-// It is generous enough to accommodate multimodal requests that inline images
-// as data: URIs; text-only deployments can lower it.
-const DefaultMaxRequestBodySize = 64 << 20 // 64 MB
+// BytesPerMB is the number of bytes in one megabyte.
+const BytesPerMB = 1024 * 1024
+
+// DefaultMaxRequestBodySize is the default cap for server.max_request_body_size,
+// in megabytes. It is generous enough to accommodate multimodal requests that
+// inline images as data: URIs; text-only deployments can lower it.
+const DefaultMaxRequestBodySize = 64 // 64 MB
 
 type ServerConfig struct {
 	ListenAddr         string        `mapstructure:"listen_addr"`

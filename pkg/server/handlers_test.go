@@ -125,10 +125,12 @@ func TestHandleInference_NullBodyMapsTo400(t *testing.T) {
 }
 
 func TestHandleInference_BodyOverConfiguredCapMapsTo413(t *testing.T) {
-	// A body larger than server.max_request_body_size is rejected before parsing.
+	// A body larger than server.max_request_body_size (in MB) is rejected before parsing.
+	// Use a 1 MB cap and send 1 MB + 1 byte to trigger the limit.
 	p := pipeline.New([]pipeline.Step{stubStep{name: "stub"}})
-	srv := New(config.ServerConfig{MaxRequestBodySize: 16}, p)
-	req := httptest.NewRequest(http.MethodPost, "/v1/chat/completions", strings.NewReader(`{"model":"a-model-that-is-too-long"}`))
+	srv := New(config.ServerConfig{MaxRequestBodySize: 1}, p)
+	oversize := strings.Repeat("x", config.BytesPerMB+1)
+	req := httptest.NewRequest(http.MethodPost, "/v1/chat/completions", strings.NewReader(oversize))
 	rec := httptest.NewRecorder()
 	srv.handleInference(rec, req)
 	if rec.Code != http.StatusRequestEntityTooLarge {
