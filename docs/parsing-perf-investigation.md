@@ -9,6 +9,8 @@ improve performance? Candidates considered:
 2. `map[string]json.RawMessage`
 3. Hybrid struct (typed hot fields + `json.RawMessage` catch-all)
 4. Patch the cached original body bytes instead of re-marshaling
+5. A faster JSON library (`bytedance/sonic`, `goccy/go-json`,
+   `valyala/fastjson`)
 
 ## TL;DR
 
@@ -21,9 +23,15 @@ improve performance? Candidates considered:
 - The byte-patching idea is the fastest in a microbenchmark, but **does not
   apply** to the path where the cost actually lives (see "Why byte-patching does
   not help").
+- A faster JSON library **is** a real win on the multimodal path: `sonic` ~14x,
+  `fastjson` ~27x on the realistic parse + mutate + serialize workload. But it
+  is a CPU/throughput win, not a user-visible latency win, and each carries
+  adoption cost (see "JSON library comparison").
 - Net conclusion: **the body representation is not where coordinator
-  performance lives.** JSON handling is microseconds-to-~1ms per request against
-  multi-second GPU inference. No change recommended.
+  performance lives.** Per-request JSON handling is microseconds-to-~1ms against
+  multi-second GPU inference. A faster library only matters if profiling proves
+  the router is CPU-bound on JSON under multimodal load. Absent that evidence,
+  no change is recommended.
 
 ## How it was measured
 
@@ -107,11 +115,84 @@ inference.
 destination type. This is the floor, and it confirms the lever is "avoid
 re-encoding the large payload," not "pick a faster map element type."
 
+## JSON library comparison
+
+The strategies above all use the stdlib `encoding/json`. A separate benchmark
+compared four libraries on a workload that mirrors what the pipeline actually
+does to a body: parse, read `model` and `stream`, add a `uuid` to each nested
+image part, add the top-level `kv_transfer_params` and `tokens` keys, then
+serialize for forwarding.
+
+Libraries: stdlib `encoding/json`, `goccy/go-json`, `bytedance/sonic`,
+`valyala/fastjson`. Same machine (Apple M4 Max, Go 1.25, `-benchmem`);
+representative medians. fastjson uses a reused `Parser` + `Arena` (its intended
+pattern).
+
+### Text-only (~430 B)
+
+| Library                 | ns/op | B/op | allocs/op | vs stdlib |
+| ----------------------- | ----- | ---- | --------- | --------- |
+| stdlib `encoding/json`  | 3727  | 3915 | 89        | 1.0x      |
+| `goccy/go-json`         | 2451  | 3840 | 54        | 1.5x      |
+| `bytedance/sonic`       | 2387  | 4773 | 29        | 1.6x      |
+| `valyala/fastjson`      | 652   | 744  | 6         | 5.7x      |
+
+### Multimodal (~340 KB base64 image)
+
+| Library                 | ns/op     | B/op    | allocs/op | vs stdlib |
+| ----------------------- | --------- | ------- | --------- | --------- |
+| stdlib `encoding/json`  | 1,150,500 | 732 KB  | 105       | 1.0x      |
+| `goccy/go-json`         | 309,589   | 737 KB  | 73        | 3.7x      |
+| `bytedance/sonic`       | 80,880    | 964 KB  | 37        | 14x       |
+| `valyala/fastjson`      | 41,663    | 353 KB  | 7         | 27x       |
+
+### Why fastjson wins
+
+fastjson is a **lazy** parser: it does not decode the 340 KB base64 string into
+a Go value, it holds a pointer into the input and materializes only the fields
+you touch. Reading two scalars, mutating one nested `uuid`, and adding two
+top-level keys never copies the image through a `map[string]any`. This is the
+same "do not round-trip the payload" lever the byte-patching experiment aimed
+at, but delivered by the library, and unlike byte-splicing it handles the nested
+`uuid` mutation cleanly. sonic is the runner-up (SIMD/JIT-assisted, mostly
+amd64); go-json is a modest drop-in gain.
+
+### Adoption cost
+
+- `bytedance/sonic`: near drop-in `encoding/json` replacement (same
+  `Marshal`/`Unmarshal` signatures). Import swap, minimal code change.
+  amd64-optimized with an arm64 fallback.
+- `goccy/go-json`: also drop-in, smaller gain.
+- `valyala/fastjson`: **not** `Unmarshal`-compatible. Adopting it means
+  rewriting every step that touches `RequestContext.Body` against
+  `*fastjson.Value`. A `Parser` is not safe for concurrent use (needs a
+  per-goroutine parser or a `ParserPool`), and parsed values are only valid
+  until the next `Parse` on that parser. The encode fan-out is concurrent, so
+  this needs care.
+- Any of them is a new dependency and requires the usual sign-off and
+  community review.
+
 ## Recommendation
 
-Leave the body representation as `map[string]any`. If multimodal throughput
-ever becomes CPU-bound (verify first via the per-step timing already emitted by
-the pipeline at the default log level), the lever is architectural: avoid
-inlining base64 images into the JSON body and pass media out-of-band / by
-reference. That removes the large-payload re-encode entirely, which no map-type
-or struct change can do.
+Leave the body representation as `map[string]any` and the parser as stdlib
+`encoding/json` unless profiling proves the router is CPU-bound on JSON under
+multimodal load. Verify first via the per-step timing already emitted by the
+pipeline at the default log level; the likely outcome is that prefill, decode,
+and image download dominate, in which case no parsing change is worthwhile.
+
+If a CPU/throughput bottleneck is confirmed, the pragmatic order is:
+
+1. **`bytedance/sonic`** for a large win (14x multimodal) at low risk, mostly an
+   import swap.
+2. **`valyala/fastjson`** only if the higher ceiling (27x, 105 to 7 allocs) is
+   needed and the cost of rewriting the body-handling steps against its API,
+   plus the concurrency/lifetime constraints, is accepted.
+
+Note these are throughput and GC-pressure wins (fewer allocations per request),
+not user-visible latency: ~1ms of saved CPU is negligible against multi-second
+GPU inference.
+
+If multimodal throughput becomes the real constraint, the largest lever remains
+architectural: avoid inlining base64 images into the JSON body and pass media
+out-of-band / by reference. That removes the large-payload encode entirely,
+which no library or map-type change can do.
